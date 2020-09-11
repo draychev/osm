@@ -146,28 +146,17 @@ func addContainer(target, add []corev1.Container, basePath string) (patch []JSON
 
 func updateAnnotation(target, add map[string]string, basePath string) (patch []JSONPatchOperation) {
 	for key, value := range add {
-		if target == nil {
-			// First one will be a Create
-			target = map[string]string{}
-			patch = append(patch, JSONPatchOperation{
-				Op:   "add",
-				Path: basePath,
-				Value: map[string]string{
-					key: value,
-				},
-			})
-		} else {
-			// Update
-			op := "add"
-			if target[key] != "" {
-				op = "replace"
-			}
-			patch = append(patch, JSONPatchOperation{
-				Op:    op,
-				Path:  path.Join(basePath, escapeJSONPointerValue(key)),
-				Value: value,
-			})
-		}
+		patch = append(patch, JSONPatchOperation{
+			Op: func() string {
+				// When target is empty or the key does not exist - it is add operation
+				if target == nil || target[key] == "" {
+					return "add"
+				}
+				return "replace"
+			}(),
+			Path:  path.Join(basePath, escapeJSONPointerValue(key)),
+			Value: value,
+		})
 	}
 
 	return patch
