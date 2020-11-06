@@ -143,13 +143,13 @@ func newSMIClient(kubeClient kubernetes.Interface, smiTrafficSplitClient smiTraf
 		ns := reflect.ValueOf(obj).Elem().FieldByName("ObjectMeta").FieldByName("Namespace").String()
 		return kubeController.IsMonitoredNamespace(ns)
 	}
-	informerCollection.TrafficSplit.AddEventHandler(k8s.GetKubernetesEventHandlers("TrafficSplit", "SMI", client.announcements, shouldObserve))
-	informerCollection.HTTPRouteGroup.AddEventHandler(k8s.GetKubernetesEventHandlers("HTTPRouteGroup", "SMI", client.announcements, shouldObserve))
-	informerCollection.TCPRoute.AddEventHandler(k8s.GetKubernetesEventHandlers("TCPRoute", "SMI", client.announcements, shouldObserve))
-	informerCollection.TrafficTarget.AddEventHandler(k8s.GetKubernetesEventHandlers("TrafficTarget", "SMI", client.announcements, shouldObserve))
+	informerCollection.TrafficSplit.AddEventHandler(k8s.GetKubernetesEventHandlersDEPRECATED("TrafficSplit", "SMI", client.announcements, shouldObserve))
+	informerCollection.HTTPRouteGroup.AddEventHandler(k8s.GetKubernetesEventHandlersDEPRECATED("HTTPRouteGroup", "SMI", client.announcements, shouldObserve))
+	informerCollection.TCPRoute.AddEventHandler(k8s.GetKubernetesEventHandlersDEPRECATED("TCPRoute", "SMI", client.announcements, shouldObserve))
+	informerCollection.TrafficTarget.AddEventHandler(k8s.GetKubernetesEventHandlersDEPRECATED("TrafficTarget", "SMI", client.announcements, shouldObserve))
 
 	if featureflags.IsBackpressureEnabled() {
-		informerCollection.Backpressure.AddEventHandler(k8s.GetKubernetesEventHandlers("Backpressure", "SMI", client.announcements, shouldObserve))
+		informerCollection.Backpressure.AddEventHandler(k8s.GetKubernetesEventHandlersDEPRECATED("Backpressure", "SMI", client.announcements, shouldObserve))
 	}
 
 	err := client.run(stop)

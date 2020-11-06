@@ -18,11 +18,11 @@ const (
 var emitLogs = os.Getenv(constants.EnvVarLogKubernetesEvents) == "true"
 
 // observeFilter returns true for YES observe and false for NO do not pay attention to this
-// This filter could be added optionally by anything using GetKubernetesEventHandlers()
+// This filter could be added optionally by anything using GetKubernetesEventHandlersDEPRECATED()
 type observeFilter func(obj interface{}) bool
 
-// GetKubernetesEventHandlers creates Kubernetes events handlers.
-func GetKubernetesEventHandlers(informerName string, providerName string, announcements chan interface{}, shouldObserve observeFilter) cache.ResourceEventHandlerFuncs {
+// GetKubernetesEventHandlersDEPRECATED creates Kubernetes events handlers.
+func GetKubernetesEventHandlersDEPRECATED(informerName string, providerName string, announcements chan interface{}, shouldObserve observeFilter) cache.ResourceEventHandlerFuncs {
 	if shouldObserve == nil {
 		shouldObserve = func(obj interface{}) bool { return true }
 	}

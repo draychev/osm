@@ -56,7 +56,7 @@ func newClient(kubeClient kubernetes.Interface, azureResourceClient *osmClient.C
 		ns := reflect.ValueOf(obj).Elem().FieldByName("ObjectMeta").FieldByName("Namespace").String()
 		return kubeController.IsMonitoredNamespace(ns)
 	}
-	informerCollection.AzureResource.AddEventHandler(k8s.GetKubernetesEventHandlers("AzureResource", "Azure", client.announcements, shouldObserve))
+	informerCollection.AzureResource.AddEventHandler(k8s.GetKubernetesEventHandlersDEPRECATED("AzureResource", "Azure", client.announcements, shouldObserve))
 
 	return &client
 }

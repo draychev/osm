@@ -73,7 +73,7 @@ func newConfigurator(kubeClient kubernetes.Interface, stop <-chan struct{}, osmN
 
 	informerName := "ConfigMap"
 	providerName := "OSMConfigMap"
-	informer.AddEventHandler(k8s.GetKubernetesEventHandlers(informerName, providerName, client.announcements, nil))
+	informer.AddEventHandler(k8s.GetKubernetesEventHandlersDEPRECATED(informerName, providerName, client.announcements, nil))
 
 	client.run(stop)
 

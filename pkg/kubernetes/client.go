@@ -53,7 +53,7 @@ func (c *Client) initNamespaceMonitor() {
 	c.informers[Namespaces] = informerFactory.Core().V1().Namespaces().Informer()
 
 	// Add event handler to informer
-	c.informers[Namespaces].AddEventHandler(GetKubernetesEventHandlers((string)(Namespaces), ProviderName, nil, nil))
+	c.informers[Namespaces].AddEventHandler(GetKubernetesEventHandlersDEPRECATED((string)(Namespaces), ProviderName, nil, nil))
 }
 
 // Initializes Service monitoring
@@ -70,7 +70,7 @@ func (c *Client) initServicesMonitor() {
 	// Announcement channel for Services
 	c.announcements[Services] = make(chan interface{})
 
-	c.informers[Services].AddEventHandler(GetKubernetesEventHandlers((string)(Services), ProviderName, c.announcements[Services], shouldObserve))
+	c.informers[Services].AddEventHandler(GetKubernetesEventHandlersDEPRECATED((string)(Services), ProviderName, c.announcements[Services], shouldObserve))
 }
 
 func (c *Client) initPodMonitor() {
@@ -86,7 +86,7 @@ func (c *Client) initPodMonitor() {
 	// Announcement channel for Pods
 	c.announcements[Pods] = make(chan interface{})
 
-	c.informers[Pods].AddEventHandler(GetKubernetesEventHandlers((string)(Pods), ProviderName, c.announcements[Services], shouldObserve))
+	c.informers[Pods].AddEventHandler(GetKubernetesEventHandlersDEPRECATED((string)(Pods), ProviderName, c.announcements[Services], shouldObserve))
 }
 
 func (c *Client) run(stop <-chan struct{}) error {
