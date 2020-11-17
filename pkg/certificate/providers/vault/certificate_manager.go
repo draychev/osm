@@ -17,15 +17,19 @@ import (
 
 var log = logger.New("vault")
 
+type hashiVaultWrite func(path string, data map[string]interface{}) (*api.Secret, error)
+
 const (
-	certificateField = "certificate"
-	privateKeyField  = "private_key"
-	issuingCAField   = "issuing_ca"
-	commonNameField  = "common_name"
-	ttlField         = "ttl"
+	certificateField  = "certificate"
+	privateKeyField   = "private_key"
+	issuingCAField    = "issuing_ca"
+	commonNameField   = "common_name"
+	ttlField          = "ttl"
+	serialNumberField = "serial_number"
 
 	checkCertificateExpirationInterval = 5 * time.Second
 	tmpCertValidityPeriod              = 1 * time.Second
+	decade                             = 8765 * time.Hour
 )
 
 // NewCertManager implements certificate.Manager and wraps a Hashi Vault with methods to allow easy certificate issuance.
@@ -49,17 +53,16 @@ func NewCertManager(vaultAddr, token string, role string, cfg configurator.Confi
 
 	c.client.SetToken(token)
 
-	// Create a temp certificate to determine the issuing CA
-	tmpCert, err := c.issue("localhost", tmpCertValidityPeriod)
+	issuingCA, err := c.getIssuingCA(issue)
 	if err != nil {
 		return nil, err
 	}
 
 	c.ca = &Certificate{
 		commonName: constants.CertificationAuthorityCommonName,
-		expiration: time.Now().Add(8765 * time.Hour), // a decade
-		certChain:  tmpCert.GetIssuingCA(),
-		issuingCA:  tmpCert.GetIssuingCA(),
+		expiration: time.Now().Add(decade),
+		certChain:  issuingCA,
+		issuingCA:  issuingCA,
 	}
 
 	// Instantiating a new certificate rotation mechanism will start a goroutine for certificate rotation.
@@ -68,14 +71,38 @@ func NewCertManager(vaultAddr, token string, role string, cfg configurator.Confi
 	return c, nil
 }
 
-func (cm *CertManager) issue(cn certificate.CommonName, validityPeriod time.Duration) (certificate.Certificater, error) {
-	secret, err := cm.client.Logical().Write(getIssueURL(cm.role).String(), getIssuanceData(cn, validityPeriod))
+func (cm *CertManager) getIssuingCA(issue func(certificate.CommonName, time.Duration) (certificate.Certificater, error)) ([]byte, error) {
+	// Create a temp certificate to determine the public part of the issuing CA
+	cert, err := issue("localhost", decade)
+	if err != nil {
+		return nil, err
+	}
+
+	issuingCA := cert.GetIssuingCA()
+
+	// We are not going to need this certificate - remove it
+	cm.ReleaseCertificate(cert.GetCommonName())
+
+	return issuingCA, err
+}
+
+func issue(hashiWrite hashiVaultWrite, role vaultRole, cn certificate.CommonName, validityPeriod time.Duration) (*Certificate, error) {
+	// For sample response - see: https://www.vaultproject.io/api-docs/secret/pki#sample-response-8
+	vaultPath := string(getIssueURL(role))
+	secret, err := hashiWrite(vaultPath, getIssuanceData(cn, validityPeriod))
 	if err != nil {
 		log.Error().Err(err).Msgf("Error issuing new certificate for CN=%s", cn)
 		return nil, err
 	}
 
-	return newCert(cn, secret, time.Now().Add(validityPeriod)), nil
+	return &Certificate{
+		commonName:   cn,
+		serialNumber: secret.Data[serialNumberField].(string),
+		expiration:   time.Now().Add(validityPeriod),
+		certChain:    pem.Certificate(secret.Data[certificateField].(string)),
+		privateKey:   []byte(secret.Data[privateKeyField].(string)),
+		issuingCA:    pem.RootCertificate(secret.Data[issuingCAField].(string)),
+	}, nil
 }
 
 func (cm *CertManager) deleteFromCache(cn certificate.CommonName) {
@@ -191,6 +218,9 @@ type Certificate struct {
 
 	// Certificate authority signing this certificate.
 	issuingCA pem.RootCertificate
+
+	// serialNumber is the serial_number value in the Data filed assigned to the Certificate Hashicorp Vault issued
+	serialNumber string
 }
 
 // GetCommonName returns the common name of the given certificate.
