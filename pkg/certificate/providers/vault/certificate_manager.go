@@ -135,7 +135,7 @@ func (cm *CertManager) IssueCertificate(cn certificate.CommonName, validityPerio
 		return cert, nil
 	}
 
-	cert, err := cm.issue(cn, validityPeriod)
+	cert, err := issue(cm.client.Logical().Write, cm.role, cn, validityPeriod)
 	if err != nil {
 		return cert, err
 	}
@@ -189,7 +189,7 @@ func (cm *CertManager) RotateCertificate(cn certificate.CommonName) (certificate
 
 	start := time.Now()
 
-	cert, err := cm.issue(cn, cm.cfg.GetServiceCertValidityPeriod())
+	cert, err := issue(cm.client.Logical().Write, cm.role, cn, cm.cfg.GetServiceCertValidityPeriod())
 	if err != nil {
 		return cert, err
 	}
