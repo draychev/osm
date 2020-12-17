@@ -75,6 +75,8 @@ func (wh *webhook) createPatch(pod *corev1.Pod, req *v1beta1.AdmissionRequest, p
 	}
 	pod.Labels[constants.EnvoyUniqueIDLabelName] = proxyUUID.String()
 
+	rewriteHealthProbes(pod)
+
 	return json.Marshal(makePatches(req, pod))
 }
 
