@@ -147,6 +147,121 @@ static_resources:
             trusted_ca:
               inline_bytes: eHg=
     type: LOGICAL_DNS
+  - connect_timeout: 0.25s
+    lb_policy: ROUND_ROBIN
+    load_assignment:
+      cluster_name: liveness_cluster
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              socket_address:
+                address: 0.0.0.0
+                port_value: 81
+    name: liveness_cluster
+    type: STATIC
+  - connect_timeout: 0.25s
+    lb_policy: ROUND_ROBIN
+    load_assignment:
+      cluster_name: readiness_cluster
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              socket_address:
+                address: 0.0.0.0
+                port_value: 82
+    name: readiness_cluster
+    type: STATIC
+  - connect_timeout: 0.25s
+    lb_policy: ROUND_ROBIN
+    load_assignment:
+      cluster_name: startup_cluster
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              socket_address:
+                address: 0.0.0.0
+                port_value: 83
+    name: startup_cluster
+    type: STATIC
+  listeners:
+  - address:
+      socket_address:
+        address: 0.0.0.0
+        port_value: 15901
+    filter_chains:
+    - filters:
+      - name: envoy.filters.network.http_connection_manager
+        typed_config:
+          '@type': type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+          http_filters:
+          - name: envoy.filters.http.router
+          route_config:
+            name: local_route
+            virtual_hosts:
+            - domains:
+              - '*'
+              name: local_service
+              routes:
+              - match:
+                  prefix: /osm-liveness-probe
+                route:
+                  cluster: liveness_cluster
+                  prefix_rewrite: /liveness
+          stat_prefix: health_probes_http
+    name: liveness_listener
+  - address:
+      socket_address:
+        address: 0.0.0.0
+        port_value: 15902
+    filter_chains:
+    - filters:
+      - name: envoy.filters.network.http_connection_manager
+        typed_config:
+          '@type': type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+          http_filters:
+          - name: envoy.filters.http.router
+          route_config:
+            name: local_route
+            virtual_hosts:
+            - domains:
+              - '*'
+              name: local_service
+              routes:
+              - match:
+                  prefix: /osm-readiness-probe
+                route:
+                  cluster: readiness_cluster
+                  prefix_rewrite: /readiness
+          stat_prefix: health_probes_http
+    name: readiness_listener
+  - address:
+      socket_address:
+        address: 0.0.0.0
+        port_value: 15903
+    filter_chains:
+    - filters:
+      - name: envoy.filters.network.http_connection_manager
+        typed_config:
+          '@type': type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+          http_filters:
+          - name: envoy.filters.http.router
+          route_config:
+            name: local_route
+            virtual_hosts:
+            - domains:
+              - '*'
+              name: local_service
+              routes:
+              - match:
+                  prefix: /osm-startup-probe
+                route:
+                  cluster: startup_cluster
+                  prefix_rewrite: /startup
+          stat_prefix: health_probes_http
+    name: startup_listener
 `
 
 	cert := tresor.NewFakeCertificate()
@@ -154,10 +269,35 @@ static_resources:
 	mockCtrl = gomock.NewController(GinkgoT())
 	mockConfigurator = configurator.NewMockConfigurator(mockCtrl)
 
+<<<<<<< HEAD
 	config := envoyBootstrapConfigMeta{
 		RootCert: base64.StdEncoding.EncodeToString(cert.GetIssuingCA()),
 		Cert:     base64.StdEncoding.EncodeToString(cert.GetCertificateChain()),
 		Key:      base64.StdEncoding.EncodeToString(cert.GetPrivateKey()),
+=======
+	probes := healthProbes{
+		liveness: &healthProbe{
+			path: "/liveness",
+			port: 81,
+		},
+		readiness: &healthProbe{
+			path: "/readiness",
+			port: 82,
+		},
+		startup: &healthProbe{
+			path: "/startup",
+			port: 83,
+		},
+	}
+
+	Context("create envoy config", func() {
+
+		It("creates envoy config", func() {
+			config := envoyBootstrapConfigMeta{
+				RootCert: base64.StdEncoding.EncodeToString(cert.GetIssuingCA()),
+				Cert:     base64.StdEncoding.EncodeToString(cert.GetCertificateChain()),
+				Key:      base64.StdEncoding.EncodeToString(cert.GetPrivateKey()),
+>>>>>>> envoy: Health probes config
 
 		EnvoyAdminPort: 15000,
 
@@ -166,9 +306,13 @@ static_resources:
 		XDSPort:        15128,
 	}
 
+<<<<<<< HEAD
 	Context("create envoy config", func() {
 		It("creates envoy config", func() {
 			actual, err := getEnvoyConfigYAML(config, mockConfigurator)
+=======
+			actual, err := getEnvoyConfigYAML(config, mockConfigurator, probes)
+>>>>>>> envoy: Health probes config
 			Expect(err).ToNot(HaveOccurred())
 
 			Expect(string(actual)).To(Equal(expectedEnvoyConfig),
@@ -185,7 +329,7 @@ static_resources:
 			namespace := "a"
 			osmNamespace := "b"
 
-			secret, err := wh.createEnvoyBootstrapConfig(name, namespace, osmNamespace, cert)
+			secret, err := wh.createEnvoyBootstrapConfig(name, namespace, osmNamespace, cert, probes)
 			Expect(err).ToNot(HaveOccurred())
 
 			expected := corev1.Secret{
@@ -238,6 +382,7 @@ static_resources:
 	})
 })
 
+// TODO(draychev): merge the two _
 var _ = Describe("Test Envoy sidecar", func() {
 	const (
 		containerName = "-container-name-"
@@ -246,13 +391,28 @@ var _ = Describe("Test Envoy sidecar", func() {
 		clusterID     = "-cluster-id-"
 	)
 
+	probes := healthProbes{
+		liveness: &healthProbe{
+			path: "/liveness",
+			port: 81,
+		},
+		readiness: &healthProbe{
+			path: "/readiness",
+			port: 82,
+		},
+		startup: &healthProbe{
+			path: "/startup",
+			port: 83,
+		},
+	}
+
 	mockCtrl := gomock.NewController(GinkgoT())
 	mockConfigurator := configurator.NewMockConfigurator(mockCtrl)
 
 	Context("create Envoy sidecar", func() {
 		It("creates correct Envoy sidecar spec", func() {
 			mockConfigurator.EXPECT().GetEnvoyLogLevel().Return("debug").Times(1)
-			actual := getEnvoySidecarContainerSpec(containerName, envoyImage, nodeID, clusterID, mockConfigurator)
+			actual := getEnvoySidecarContainerSpec(containerName, envoyImage, nodeID, clusterID, mockConfigurator, probes)
 
 			expected := corev1.Container{
 				Name:            containerName,

@@ -15,7 +15,7 @@ import (
 	"github.com/openservicemesh/osm/pkg/constants"
 )
 
-func getEnvoyConfigYAML(config envoyBootstrapConfigMeta, cfg configurator.Configurator) ([]byte, error) {
+func getEnvoyConfigYAML(config envoyBootstrapConfigMeta, cfg configurator.Configurator, originalHealthProbes healthProbes) ([]byte, error) {
 	m := map[interface{}]interface{}{
 		"admin": map[string]interface{}{
 			"access_log_path": "/dev/stdout",
@@ -51,7 +51,7 @@ func getEnvoyConfigYAML(config envoyBootstrapConfigMeta, cfg configurator.Config
 		},
 	}
 
-	m["static_resources"] = getStaticResources(config)
+	m["static_resources"] = getStaticResources(config, cfg, originalHealthProbes)
 
 	configYAML, err := yaml.Marshal(&m)
 	if err != nil {
@@ -61,19 +61,37 @@ func getEnvoyConfigYAML(config envoyBootstrapConfigMeta, cfg configurator.Config
 	return configYAML, err
 }
 
-func getStaticResources(config envoyBootstrapConfigMeta) map[string]interface{} {
+func getStaticResources(config envoyBootstrapConfigMeta, cfg configurator.Configurator, originalHealthProbes healthProbes) map[string]interface{} {
+	var listeners []map[string]interface{}
 	clusters := []map[string]interface{}{
-		getXdsCluster(config),
+		getXdsCluster(config, cfg, originalHealthProbes),
+	}
+
+	if originalHealthProbes.liveness != nil {
+		listeners = append(listeners, getLivenessListener(originalHealthProbes.liveness))
+		clusters = append(clusters, getLivenessCluster(originalHealthProbes.liveness))
+	}
+	if originalHealthProbes.readiness != nil {
+		listeners = append(listeners, getReadinessListener(originalHealthProbes.readiness))
+		clusters = append(clusters, getReadinessCluster(originalHealthProbes.readiness))
+	}
+	if originalHealthProbes.startup != nil {
+		listeners = append(listeners, getStartupListener(originalHealthProbes.startup))
+		clusters = append(clusters, getStartupCluster(originalHealthProbes.startup))
 	}
 
 	staticResources := map[string]interface{}{
 		"clusters": clusters,
 	}
 
+	if len(listeners) > 0 {
+		staticResources["listeners"] = listeners
+	}
+
 	return staticResources
 }
 
-func (wh *webhook) createEnvoyBootstrapConfig(name, namespace, osmNamespace string, cert certificate.Certificater) (*corev1.Secret, error) {
+func (wh *webhook) createEnvoyBootstrapConfig(name, namespace, osmNamespace string, cert certificate.Certificater, originalHealthProbes healthProbes) (*corev1.Secret, error) {
 	configMeta := envoyBootstrapConfigMeta{
 		EnvoyAdminPort: constants.EnvoyAdminPort,
 		XDSClusterName: constants.OSMControllerName,
@@ -85,7 +103,7 @@ func (wh *webhook) createEnvoyBootstrapConfig(name, namespace, osmNamespace stri
 		XDSHost: fmt.Sprintf("%s.%s.svc.cluster.local", constants.OSMControllerName, osmNamespace),
 		XDSPort: constants.OSMControllerPort,
 	}
-	yamlContent, err := getEnvoyConfigYAML(configMeta, wh.configurator)
+	yamlContent, err := getEnvoyConfigYAML(configMeta, wh.configurator, originalHealthProbes)
 	if err != nil {
 		log.Error().Err(err).Msg("Error creating Envoy bootstrap YAML")
 		return nil, err
@@ -109,7 +127,7 @@ func (wh *webhook) createEnvoyBootstrapConfig(name, namespace, osmNamespace stri
 	return wh.kubeClient.CoreV1().Secrets(namespace).Create(context.Background(), secret, metav1.CreateOptions{})
 }
 
-func getXdsCluster(config envoyBootstrapConfigMeta) map[string]interface{} {
+func getXdsCluster(config envoyBootstrapConfigMeta, cfg configurator.Configurator, originalHealthProbes healthProbes) map[string]interface{} {
 	return map[string]interface{}{
 		"name":                   config.XDSClusterName,
 		"connect_timeout":        "0.25s",

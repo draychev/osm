@@ -19,32 +19,50 @@ const (
 
 var errNoMatchingPort = errors.New("no matching port")
 
-func rewriteHealthProbes(pod *corev1.Pod) {
+type healthProbe struct {
+	path string
+	port int32
+}
+
+// healthProbes is to serve as an indication whether the given healthProbe has been rewritten
+type healthProbes struct {
+	liveness, readiness, startup *healthProbe
+}
+
+func rewriteHealthProbes(pod *corev1.Pod) healthProbes {
+	probes := healthProbes{}
 	for idx := range pod.Spec.Containers {
-		rewriteLiveness(&pod.Spec.Containers[idx])
-		rewriteReadiness(&pod.Spec.Containers[idx])
-		rewriteStartup(&pod.Spec.Containers[idx])
+		if probe := rewriteLiveness(&pod.Spec.Containers[idx]); probe != nil {
+			probes.liveness = probe
+		}
+		if probe := rewriteReadiness(&pod.Spec.Containers[idx]); probe != nil {
+			probes.readiness = probe
+		}
+		if probe := rewriteStartup(&pod.Spec.Containers[idx]); probe != nil {
+			probes.startup = probe
+		}
 	}
+	return probes
 }
 
-func rewriteLiveness(container *corev1.Container) {
-	rewriteProbe(container.LivenessProbe, "liveness", livenessProbePath, livenessProbePort, &container.Ports)
+func rewriteLiveness(container *corev1.Container) *healthProbe {
+	return rewriteProbe(container.LivenessProbe, "liveness", livenessProbePath, livenessProbePort, &container.Ports)
 }
 
-func rewriteReadiness(container *corev1.Container) {
-	rewriteProbe(container.ReadinessProbe, "readiness", readinessProbePath, readinessProbePort, &container.Ports)
+func rewriteReadiness(container *corev1.Container) *healthProbe {
+	return rewriteProbe(container.ReadinessProbe, "readiness", readinessProbePath, readinessProbePort, &container.Ports)
 }
 
-func rewriteStartup(container *corev1.Container) {
-	rewriteProbe(container.StartupProbe, "startup", startupProbePath, startupProbePort, &container.Ports)
+func rewriteStartup(container *corev1.Container) *healthProbe {
+	return rewriteProbe(container.StartupProbe, "startup", startupProbePath, startupProbePort, &container.Ports)
 }
 
-func rewriteProbe(probe *corev1.Probe, probeType, path string, port int32, containerPorts *[]corev1.ContainerPort) {
+func rewriteProbe(probe *corev1.Probe, probeType, path string, port int32, containerPorts *[]corev1.ContainerPort) *healthProbe {
 	if probe == nil {
-		return
+		return nil
 	}
 	if probe.HTTPGet == nil {
-		return
+		return nil
 	}
 
 	originalPort, err := getPort(probe.HTTPGet.Port, containerPorts)
@@ -57,11 +75,16 @@ func rewriteProbe(probe *corev1.Probe, probeType, path string, port int32, conta
 	probe.HTTPGet.Path = path
 
 	log.Debug().Msgf(
-		"Rewriting %s probe (%d %s) to %d %s",
+		"Rewriting %s probe (:%d%s) to :%d%s",
 		probeType,
 		originalPort, originalPath,
 		probe.HTTPGet.Port.IntValue(), probe.HTTPGet.Path,
 	)
+
+	return &healthProbe{
+		port: originalPort,
+		path: originalPath,
+	}
 }
 
 // getPort returns the int32 of an IntOrString port; It looks for port's name matches in the full list of container ports
