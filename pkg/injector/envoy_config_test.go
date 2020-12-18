@@ -269,12 +269,18 @@ static_resources:
 	mockCtrl = gomock.NewController(GinkgoT())
 	mockConfigurator = configurator.NewMockConfigurator(mockCtrl)
 
-<<<<<<< HEAD
 	config := envoyBootstrapConfigMeta{
 		RootCert: base64.StdEncoding.EncodeToString(cert.GetIssuingCA()),
 		Cert:     base64.StdEncoding.EncodeToString(cert.GetCertificateChain()),
 		Key:      base64.StdEncoding.EncodeToString(cert.GetPrivateKey()),
-=======
+
+		EnvoyAdminPort: 15000,
+
+		XDSClusterName: "osm-controller",
+		XDSHost:        "osm-controller.b.svc.cluster.local",
+		XDSPort:        15128,
+	}
+
 	probes := healthProbes{
 		liveness: &healthProbe{
 			path: "/liveness",
@@ -291,28 +297,9 @@ static_resources:
 	}
 
 	Context("create envoy config", func() {
-
 		It("creates envoy config", func() {
-			config := envoyBootstrapConfigMeta{
-				RootCert: base64.StdEncoding.EncodeToString(cert.GetIssuingCA()),
-				Cert:     base64.StdEncoding.EncodeToString(cert.GetCertificateChain()),
-				Key:      base64.StdEncoding.EncodeToString(cert.GetPrivateKey()),
->>>>>>> envoy: Health probes config
-
-		EnvoyAdminPort: 15000,
-
-		XDSClusterName: "osm-controller",
-		XDSHost:        "osm-controller.b.svc.cluster.local",
-		XDSPort:        15128,
-	}
-
-<<<<<<< HEAD
-	Context("create envoy config", func() {
-		It("creates envoy config", func() {
-			actual, err := getEnvoyConfigYAML(config, mockConfigurator)
-=======
 			actual, err := getEnvoyConfigYAML(config, mockConfigurator, probes)
->>>>>>> envoy: Health probes config
+
 			Expect(err).ToNot(HaveOccurred())
 
 			Expect(string(actual)).To(Equal(expectedEnvoyConfig),
@@ -355,7 +342,7 @@ static_resources:
 
 	Context("Test getStaticResources()", func() {
 		It("Creates static_resources Envoy struct", func() {
-			actual := getXdsCluster(config)
+			actual := getXdsCluster(config, mockConfigurator, probes)
 			expected := getExpectedXDSClusterStruct()
 
 			expectedJSON := marshal(expected)
@@ -367,7 +354,7 @@ static_resources:
 
 	Context("Test getStaticResources()", func() {
 		It("Creates static_resources Envoy struct", func() {
-			actual := getStaticResources(config)
+			actual := getStaticResources(config, mockConfigurator, probes)
 			expected := map[string]interface{}{
 				"clusters": []map[string]interface{}{
 					getExpectedXDSClusterStruct(),

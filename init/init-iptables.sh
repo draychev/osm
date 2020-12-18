@@ -19,6 +19,7 @@ iptables -t nat -A PROXY_REDIRECT -p tcp -j REDIRECT --to-port "${PROXY_PORT}"
 # Traffic to the Proxy Admin port flows to the Proxy -- not redirected
 iptables -t nat -A PROXY_REDIRECT -p tcp --dport "${PROXY_ADMIN_PORT}" -j ACCEPT
 
+
 # Create a new chain for redirecting inbound traffic to PROXY_INBOUND_PORT
 iptables -t nat -N PROXY_IN_REDIRECT
 iptables -t nat -A PROXY_IN_REDIRECT -p tcp -j REDIRECT --to-port "${PROXY_INBOUND_PORT}"
