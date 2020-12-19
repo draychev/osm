@@ -3,14 +3,16 @@
 set -aueo pipefail
 
 PROXY_ADMIN_PORT=${PROXY_ADMIN_PORT:-15000}
-PROXY_LIVENESS_PROBE_PORT=${PROXY_LIVENESS_PROBE_PORT:-15901}
-PROXY_READINESS_PROBE_PORT=${PROXY_READINESS_PROBE_PORT:-15902}
-PROXY_STARTUP_PROBE_PORT=${PROXY_STARTUP_PROBE_PORT:-15903}
 PROXY_STATS_PORT=${PROXY_STATS_PORT:-15010}
 PROXY_PORT=${PROXY_PORT:-15001}
 PROXY_INBOUND_PORT=${PROXY_INBOUND_PORT:-15003}
 PROXY_UID=${PROXY_UID:-1337}
 SSH_PORT=${SSH_PORT:-22}
+
+# The following ports are dedicated to liveness, readiness, and startup probes
+PROXY_LIVENESS_PROBE_PORT=${PROXY_LIVENESS_PROBE_PORT:-15901}
+PROXY_READINESS_PROBE_PORT=${PROXY_READINESS_PROBE_PORT:-15902}
+PROXY_STARTUP_PROBE_PORT=${PROXY_STARTUP_PROBE_PORT:-15903}
 
 # Create a new chain for redirecting outbound traffic to PROXY_PORT
 iptables -t nat -N PROXY_REDIRECT
@@ -30,15 +32,17 @@ iptables -t nat -A PREROUTING -p tcp -j PROXY_INBOUND
 
 # Skip inbound SSH redirection
 iptables -t nat -A PROXY_INBOUND -p tcp --dport "${SSH_PORT}" -j RETURN
+
 # Skip inbound stats query redirection
 iptables -t nat -A PROXY_INBOUND -p tcp --dport "${PROXY_STATS_PORT}" -j RETURN
+
 # Skip inbound health probes
 iptables -t nat -A PROXY_INBOUND -p tcp --dport "${PROXY_LIVENESS_PROBE_PORT}" -j RETURN
 iptables -t nat -A PROXY_INBOUND -p tcp --dport "${PROXY_READINESS_PROBE_PORT}" -j RETURN
 iptables -t nat -A PROXY_INBOUND -p tcp --dport "${PROXY_STARTUP_PROBE_PORT}" -j RETURN
+
 # Redirect remaining inbound traffic to PROXY_INBOUND_PORT
 iptables -t nat -A PROXY_INBOUND -p tcp -j PROXY_IN_REDIRECT
-
 
 # Create a new chain to redirect outbound traffic to Envoy
 iptables -t nat -N PROXY_OUTPUT

@@ -64,7 +64,7 @@ func getEnvoyConfigYAML(config envoyBootstrapConfigMeta, cfg configurator.Config
 func getStaticResources(config envoyBootstrapConfigMeta, cfg configurator.Configurator, originalHealthProbes healthProbes) map[string]interface{} {
 	var listeners []map[string]interface{}
 	clusters := []map[string]interface{}{
-		getXdsCluster(config, cfg, originalHealthProbes),
+		getXdsCluster(config),
 	}
 
 	if originalHealthProbes.liveness != nil {
@@ -127,7 +127,7 @@ func (wh *webhook) createEnvoyBootstrapConfig(name, namespace, osmNamespace stri
 	return wh.kubeClient.CoreV1().Secrets(namespace).Create(context.Background(), secret, metav1.CreateOptions{})
 }
 
-func getXdsCluster(config envoyBootstrapConfigMeta, cfg configurator.Configurator, originalHealthProbes healthProbes) map[string]interface{} {
+func getXdsCluster(config envoyBootstrapConfigMeta) map[string]interface{} {
 	return map[string]interface{}{
 		"name":                   config.XDSClusterName,
 		"connect_timeout":        "0.25s",

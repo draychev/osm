@@ -1,7 +1,5 @@
 package injector
 
-import "fmt"
-
 const (
 	livenessCluster  = "liveness_cluster"
 	readinessCluster = "readiness_cluster"
@@ -112,18 +110,12 @@ func getProbeListener(listenerName, clusterName, newPath string, port int32, ori
 										"routes": []map[string]interface{}{
 											{
 												"match": map[string]interface{}{
-													"prefix": "/", // newPath,
+													"prefix": newPath,
 												},
-												"direct_response": map[string]interface{}{
-													"status": 200,
-													"body": map[string]interface{}{
-														"inline_string": fmt.Sprintf("This server is listening on 127.0.0.1:%d\n", originalProbe.port),
-													},
-												},
-												/*"route": map[string]interface{}{
+												"route": map[string]interface{}{
 													"cluster":        clusterName,
 													"prefix_rewrite": originalProbe.path,
-												},*/
+												},
 											},
 										},
 									},

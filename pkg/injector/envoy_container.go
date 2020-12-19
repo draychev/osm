@@ -26,7 +26,7 @@ func getEnvoySidecarContainerSpec(containerName, envoyImage, nodeID, clusterID s
 				return &uid
 			}(),
 		},
-		Ports: getEnvoyContainerPorts(originalHealthProbes),
+		Ports: getEnvoyConitainerPorts(originalHealthProbes),
 		VolumeMounts: []corev1.VolumeMount{{
 			Name:      envoyBootstrapConfigVolume,
 			ReadOnly:  true,

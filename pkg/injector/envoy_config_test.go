@@ -196,6 +196,29 @@ static_resources:
       - name: envoy.filters.network.http_connection_manager
         typed_config:
           '@type': type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+		  log_format:
+			json_format:
+			  authority: '%!R(MISSING)EQ(:AUTHORITY)%!'(MISSING)
+			  bytes_received: '%!B(MISSING)YTES_RECEIVED%!'(MISSING)
+			  bytes_sent: '%!B(MISSING)YTES_SENT%!'(MISSING)
+			  duration: '%!D(MISSING)URATION%!'(MISSING)
+			  method: '%!R(MISSING)EQ(:METHOD)%!'(MISSING)
+			  path: '%!R(MISSING)EQ(X-ENVOY-ORIGINAL-PATH?:PATH)%!'(MISSING)
+			  protocol: '%!P(MISSING)ROTOCOL%!'(MISSING)
+			  request_id: '%!R(MISSING)EQ(X-REQUEST-ID)%!'(MISSING)
+			  requested_server_name: '%!R(MISSING)EQUESTED_SERVER_NAME%!'(MISSING)
+			  response_code: '%!R(MISSING)ESPONSE_CODE%!'(MISSING)
+			  response_code_details: '%!R(MISSING)ESPONSE_CODE_DETAILS%!'(MISSING)
+			  response_flags: '%!R(MISSING)ESPONSE_FLAGS%!'(MISSING)
+			  start_time: '%!S(MISSING)TART_TIME%!'(MISSING)
+			  time_to_first_byte: '%!R(MISSING)ESPONSE_DURATION%!'(MISSING)
+			  upstream_cluster: '%!U(MISSING)PSTREAM_CLUSTER%!'(MISSING)
+			  upstream_host: '%!U(MISSING)PSTREAM_HOST%!'(MISSING)
+			  upstream_service_time: '%!R(MISSING)ESP(X-ENVOY-UPSTREAM-SERVICE-TIME)%!'(MISSING)
+			  user_agent: '%!R(MISSING)EQ(USER-AGENT)%!'(MISSING)
+			  x_forwarded_for: '%!R(MISSING)EQ(X-FORWARDED-FOR)%!'(MISSING)
+		  path: /dev/stdout
+	  codec_type: AUTO
           http_filters:
           - name: envoy.filters.http.router
           route_config:
@@ -221,6 +244,29 @@ static_resources:
       - name: envoy.filters.network.http_connection_manager
         typed_config:
           '@type': type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+		  log_format:
+			json_format:
+			  authority: '%!R(MISSING)EQ(:AUTHORITY)%!'(MISSING)
+			  bytes_received: '%!B(MISSING)YTES_RECEIVED%!'(MISSING)
+			  bytes_sent: '%!B(MISSING)YTES_SENT%!'(MISSING)
+			  duration: '%!D(MISSING)URATION%!'(MISSING)
+			  method: '%!R(MISSING)EQ(:METHOD)%!'(MISSING)
+			  path: '%!R(MISSING)EQ(X-ENVOY-ORIGINAL-PATH?:PATH)%!'(MISSING)
+			  protocol: '%!P(MISSING)ROTOCOL%!'(MISSING)
+			  request_id: '%!R(MISSING)EQ(X-REQUEST-ID)%!'(MISSING)
+			  requested_server_name: '%!R(MISSING)EQUESTED_SERVER_NAME%!'(MISSING)
+			  response_code: '%!R(MISSING)ESPONSE_CODE%!'(MISSING)
+			  response_code_details: '%!R(MISSING)ESPONSE_CODE_DETAILS%!'(MISSING)
+			  response_flags: '%!R(MISSING)ESPONSE_FLAGS%!'(MISSING)
+			  start_time: '%!S(MISSING)TART_TIME%!'(MISSING)
+			  time_to_first_byte: '%!R(MISSING)ESPONSE_DURATION%!'(MISSING)
+			  upstream_cluster: '%!U(MISSING)PSTREAM_CLUSTER%!'(MISSING)
+			  upstream_host: '%!U(MISSING)PSTREAM_HOST%!'(MISSING)
+			  upstream_service_time: '%!R(MISSING)ESP(X-ENVOY-UPSTREAM-SERVICE-TIME)%!'(MISSING)
+			  user_agent: '%!R(MISSING)EQ(USER-AGENT)%!'(MISSING)
+			  x_forwarded_for: '%!R(MISSING)EQ(X-FORWARDED-FOR)%!'(MISSING)
+		  path: /dev/stdout
+	  codec_type: AUTO
           http_filters:
           - name: envoy.filters.http.router
           route_config:
@@ -246,6 +292,29 @@ static_resources:
       - name: envoy.filters.network.http_connection_manager
         typed_config:
           '@type': type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+		  log_format:
+			json_format:
+			  authority: '%!R(MISSING)EQ(:AUTHORITY)%!'(MISSING)
+			  bytes_received: '%!B(MISSING)YTES_RECEIVED%!'(MISSING)
+			  bytes_sent: '%!B(MISSING)YTES_SENT%!'(MISSING)
+			  duration: '%!D(MISSING)URATION%!'(MISSING)
+			  method: '%!R(MISSING)EQ(:METHOD)%!'(MISSING)
+			  path: '%!R(MISSING)EQ(X-ENVOY-ORIGINAL-PATH?:PATH)%!'(MISSING)
+			  protocol: '%!P(MISSING)ROTOCOL%!'(MISSING)
+			  request_id: '%!R(MISSING)EQ(X-REQUEST-ID)%!'(MISSING)
+			  requested_server_name: '%!R(MISSING)EQUESTED_SERVER_NAME%!'(MISSING)
+			  response_code: '%!R(MISSING)ESPONSE_CODE%!'(MISSING)
+			  response_code_details: '%!R(MISSING)ESPONSE_CODE_DETAILS%!'(MISSING)
+			  response_flags: '%!R(MISSING)ESPONSE_FLAGS%!'(MISSING)
+			  start_time: '%!S(MISSING)TART_TIME%!'(MISSING)
+			  time_to_first_byte: '%!R(MISSING)ESPONSE_DURATION%!'(MISSING)
+			  upstream_cluster: '%!U(MISSING)PSTREAM_CLUSTER%!'(MISSING)
+			  upstream_host: '%!U(MISSING)PSTREAM_HOST%!'(MISSING)
+			  upstream_service_time: '%!R(MISSING)ESP(X-ENVOY-UPSTREAM-SERVICE-TIME)%!'(MISSING)
+			  user_agent: '%!R(MISSING)EQ(USER-AGENT)%!'(MISSING)
+			  x_forwarded_for: '%!R(MISSING)EQ(X-FORWARDED-FOR)%!'(MISSING)
+		  path: /dev/stdout
+	  codec_type: AUTO
           http_filters:
           - name: envoy.filters.http.router
           route_config:
