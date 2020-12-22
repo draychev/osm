@@ -100,26 +100,8 @@ func getProbeListener(listenerName, clusterName, newPath string, port int32, ori
 							"access_log":  getAccessLog(),
 							"codec_type":  "AUTO",
 							"route_config": map[string]interface{}{
-								"name": "local_route",
-								"virtual_hosts": []map[string]interface{}{
-									{
-										"name": "local_service",
-										"domains": []string{
-											"*",
-										},
-										"routes": []map[string]interface{}{
-											{
-												"match": map[string]interface{}{
-													"prefix": newPath,
-												},
-												"route": map[string]interface{}{
-													"cluster":        clusterName,
-													"prefix_rewrite": originalProbe.path,
-												},
-											},
-										},
-									},
-								},
+								"name":          "local_route",
+								"virtual_hosts": getVirtualHosts(newPath, clusterName, originalProbe.path),
 							},
 							"http_filters": []map[string]interface{}{
 								{
@@ -127,6 +109,28 @@ func getProbeListener(listenerName, clusterName, newPath string, port int32, ori
 								},
 							},
 						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func getVirtualHosts(newPath, clusterName, originalProbePath string) []map[string]interface{} {
+	return []map[string]interface{}{
+		{
+			"name": "local_service",
+			"domains": []string{
+				"*",
+			},
+			"routes": []map[string]interface{}{
+				{
+					"match": map[string]interface{}{
+						"prefix": newPath,
+					},
+					"route": map[string]interface{}{
+						"cluster":        clusterName,
+						"prefix_rewrite": originalProbePath,
 					},
 				},
 			},

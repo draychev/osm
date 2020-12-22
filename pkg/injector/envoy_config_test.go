@@ -89,6 +89,28 @@ var _ = Describe("Test Envoy configuration creation", func() {
 		mockConfigurator *configurator.MockConfigurator
 	)
 
+	const expectedLogFormat = `		  log_format:
+			json_format:
+			  authority: '%!R(MISSING)EQ(:AUTHORITY)%!'(MISSING)
+			  bytes_received: '%!B(MISSING)YTES_RECEIVED%!'(MISSING)
+			  bytes_sent: '%!B(MISSING)YTES_SENT%!'(MISSING)
+			  duration: '%!D(MISSING)URATION%!'(MISSING)
+			  method: '%!R(MISSING)EQ(:METHOD)%!'(MISSING)
+			  path: '%!R(MISSING)EQ(X-ENVOY-ORIGINAL-PATH?:PATH)%!'(MISSING)
+			  protocol: '%!P(MISSING)ROTOCOL%!'(MISSING)
+			  request_id: '%!R(MISSING)EQ(X-REQUEST-ID)%!'(MISSING)
+			  requested_server_name: '%!R(MISSING)EQUESTED_SERVER_NAME%!'(MISSING)
+			  response_code: '%!R(MISSING)ESPONSE_CODE%!'(MISSING)
+			  response_code_details: '%!R(MISSING)ESPONSE_CODE_DETAILS%!'(MISSING)
+			  response_flags: '%!R(MISSING)ESPONSE_FLAGS%!'(MISSING)
+			  start_time: '%!S(MISSING)TART_TIME%!'(MISSING)
+			  time_to_first_byte: '%!R(MISSING)ESPONSE_DURATION%!'(MISSING)
+			  upstream_cluster: '%!U(MISSING)PSTREAM_CLUSTER%!'(MISSING)
+			  upstream_host: '%!U(MISSING)PSTREAM_HOST%!'(MISSING)
+			  upstream_service_time: '%!R(MISSING)ESP(X-ENVOY-UPSTREAM-SERVICE-TIME)%!'(MISSING)
+			  user_agent: '%!R(MISSING)EQ(USER-AGENT)%!'(MISSING)
+			  x_forwarded_for: '%!R(MISSING)EQ(X-FORWARDED-FOR)%!'(MISSING)`
+
 	// This is the Bootstrap YAML generated for the Envoy proxies.
 	// This is provisioned by the MutatingWebhook during the addition of a sidecar
 	// to every new Pod that is being created in a namespace participating in the service mesh.
@@ -147,7 +169,7 @@ static_resources:
             trusted_ca:
               inline_bytes: eHg=
     type: LOGICAL_DNS
-  - connect_timeout: 0.25s
+  - connect_timeout: 1s
     lb_policy: ROUND_ROBIN
     load_assignment:
       cluster_name: liveness_cluster
@@ -160,7 +182,7 @@ static_resources:
                 port_value: 81
     name: liveness_cluster
     type: STATIC
-  - connect_timeout: 0.25s
+  - connect_timeout: 1s
     lb_policy: ROUND_ROBIN
     load_assignment:
       cluster_name: readiness_cluster
@@ -173,7 +195,7 @@ static_resources:
                 port_value: 82
     name: readiness_cluster
     type: STATIC
-  - connect_timeout: 0.25s
+  - connect_timeout: 1s
     lb_policy: ROUND_ROBIN
     load_assignment:
       cluster_name: startup_cluster
@@ -196,27 +218,7 @@ static_resources:
       - name: envoy.filters.network.http_connection_manager
         typed_config:
           '@type': type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
-		  log_format:
-			json_format:
-			  authority: '%!R(MISSING)EQ(:AUTHORITY)%!'(MISSING)
-			  bytes_received: '%!B(MISSING)YTES_RECEIVED%!'(MISSING)
-			  bytes_sent: '%!B(MISSING)YTES_SENT%!'(MISSING)
-			  duration: '%!D(MISSING)URATION%!'(MISSING)
-			  method: '%!R(MISSING)EQ(:METHOD)%!'(MISSING)
-			  path: '%!R(MISSING)EQ(X-ENVOY-ORIGINAL-PATH?:PATH)%!'(MISSING)
-			  protocol: '%!P(MISSING)ROTOCOL%!'(MISSING)
-			  request_id: '%!R(MISSING)EQ(X-REQUEST-ID)%!'(MISSING)
-			  requested_server_name: '%!R(MISSING)EQUESTED_SERVER_NAME%!'(MISSING)
-			  response_code: '%!R(MISSING)ESPONSE_CODE%!'(MISSING)
-			  response_code_details: '%!R(MISSING)ESPONSE_CODE_DETAILS%!'(MISSING)
-			  response_flags: '%!R(MISSING)ESPONSE_FLAGS%!'(MISSING)
-			  start_time: '%!S(MISSING)TART_TIME%!'(MISSING)
-			  time_to_first_byte: '%!R(MISSING)ESPONSE_DURATION%!'(MISSING)
-			  upstream_cluster: '%!U(MISSING)PSTREAM_CLUSTER%!'(MISSING)
-			  upstream_host: '%!U(MISSING)PSTREAM_HOST%!'(MISSING)
-			  upstream_service_time: '%!R(MISSING)ESP(X-ENVOY-UPSTREAM-SERVICE-TIME)%!'(MISSING)
-			  user_agent: '%!R(MISSING)EQ(USER-AGENT)%!'(MISSING)
-			  x_forwarded_for: '%!R(MISSING)EQ(X-FORWARDED-FOR)%!'(MISSING)
+` + expectedLogFormat + `
 		  path: /dev/stdout
 	  codec_type: AUTO
           http_filters:
@@ -244,27 +246,7 @@ static_resources:
       - name: envoy.filters.network.http_connection_manager
         typed_config:
           '@type': type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
-		  log_format:
-			json_format:
-			  authority: '%!R(MISSING)EQ(:AUTHORITY)%!'(MISSING)
-			  bytes_received: '%!B(MISSING)YTES_RECEIVED%!'(MISSING)
-			  bytes_sent: '%!B(MISSING)YTES_SENT%!'(MISSING)
-			  duration: '%!D(MISSING)URATION%!'(MISSING)
-			  method: '%!R(MISSING)EQ(:METHOD)%!'(MISSING)
-			  path: '%!R(MISSING)EQ(X-ENVOY-ORIGINAL-PATH?:PATH)%!'(MISSING)
-			  protocol: '%!P(MISSING)ROTOCOL%!'(MISSING)
-			  request_id: '%!R(MISSING)EQ(X-REQUEST-ID)%!'(MISSING)
-			  requested_server_name: '%!R(MISSING)EQUESTED_SERVER_NAME%!'(MISSING)
-			  response_code: '%!R(MISSING)ESPONSE_CODE%!'(MISSING)
-			  response_code_details: '%!R(MISSING)ESPONSE_CODE_DETAILS%!'(MISSING)
-			  response_flags: '%!R(MISSING)ESPONSE_FLAGS%!'(MISSING)
-			  start_time: '%!S(MISSING)TART_TIME%!'(MISSING)
-			  time_to_first_byte: '%!R(MISSING)ESPONSE_DURATION%!'(MISSING)
-			  upstream_cluster: '%!U(MISSING)PSTREAM_CLUSTER%!'(MISSING)
-			  upstream_host: '%!U(MISSING)PSTREAM_HOST%!'(MISSING)
-			  upstream_service_time: '%!R(MISSING)ESP(X-ENVOY-UPSTREAM-SERVICE-TIME)%!'(MISSING)
-			  user_agent: '%!R(MISSING)EQ(USER-AGENT)%!'(MISSING)
-			  x_forwarded_for: '%!R(MISSING)EQ(X-FORWARDED-FOR)%!'(MISSING)
+` + expectedLogFormat + `
 		  path: /dev/stdout
 	  codec_type: AUTO
           http_filters:
@@ -293,26 +275,7 @@ static_resources:
         typed_config:
           '@type': type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
 		  log_format:
-			json_format:
-			  authority: '%!R(MISSING)EQ(:AUTHORITY)%!'(MISSING)
-			  bytes_received: '%!B(MISSING)YTES_RECEIVED%!'(MISSING)
-			  bytes_sent: '%!B(MISSING)YTES_SENT%!'(MISSING)
-			  duration: '%!D(MISSING)URATION%!'(MISSING)
-			  method: '%!R(MISSING)EQ(:METHOD)%!'(MISSING)
-			  path: '%!R(MISSING)EQ(X-ENVOY-ORIGINAL-PATH?:PATH)%!'(MISSING)
-			  protocol: '%!P(MISSING)ROTOCOL%!'(MISSING)
-			  request_id: '%!R(MISSING)EQ(X-REQUEST-ID)%!'(MISSING)
-			  requested_server_name: '%!R(MISSING)EQUESTED_SERVER_NAME%!'(MISSING)
-			  response_code: '%!R(MISSING)ESPONSE_CODE%!'(MISSING)
-			  response_code_details: '%!R(MISSING)ESPONSE_CODE_DETAILS%!'(MISSING)
-			  response_flags: '%!R(MISSING)ESPONSE_FLAGS%!'(MISSING)
-			  start_time: '%!S(MISSING)TART_TIME%!'(MISSING)
-			  time_to_first_byte: '%!R(MISSING)ESPONSE_DURATION%!'(MISSING)
-			  upstream_cluster: '%!U(MISSING)PSTREAM_CLUSTER%!'(MISSING)
-			  upstream_host: '%!U(MISSING)PSTREAM_HOST%!'(MISSING)
-			  upstream_service_time: '%!R(MISSING)ESP(X-ENVOY-UPSTREAM-SERVICE-TIME)%!'(MISSING)
-			  user_agent: '%!R(MISSING)EQ(USER-AGENT)%!'(MISSING)
-			  x_forwarded_for: '%!R(MISSING)EQ(X-FORWARDED-FOR)%!'(MISSING)
+` + expectedLogFormat + `
 		  path: /dev/stdout
 	  codec_type: AUTO
           http_filters:
@@ -338,18 +301,6 @@ static_resources:
 	mockCtrl = gomock.NewController(GinkgoT())
 	mockConfigurator = configurator.NewMockConfigurator(mockCtrl)
 
-	config := envoyBootstrapConfigMeta{
-		RootCert: base64.StdEncoding.EncodeToString(cert.GetIssuingCA()),
-		Cert:     base64.StdEncoding.EncodeToString(cert.GetCertificateChain()),
-		Key:      base64.StdEncoding.EncodeToString(cert.GetPrivateKey()),
-
-		EnvoyAdminPort: 15000,
-
-		XDSClusterName: "osm-controller",
-		XDSHost:        "osm-controller.b.svc.cluster.local",
-		XDSPort:        15128,
-	}
-
 	probes := healthProbes{
 		liveness: &healthProbe{
 			path: "/liveness",
@@ -365,9 +316,24 @@ static_resources:
 		},
 	}
 
+	config := envoyBootstrapConfigMeta{
+		RootCert: base64.StdEncoding.EncodeToString(cert.GetIssuingCA()),
+		Cert:     base64.StdEncoding.EncodeToString(cert.GetCertificateChain()),
+		Key:      base64.StdEncoding.EncodeToString(cert.GetPrivateKey()),
+
+		EnvoyAdminPort: 15000,
+
+		XDSClusterName: "osm-controller",
+		XDSHost:        "osm-controller.b.svc.cluster.local",
+		XDSPort:        15128,
+
+		OriginalHealthProbes: probes,
+	}
+
 	Context("create envoy config", func() {
 		It("creates envoy config", func() {
-			actual, err := getEnvoyConfigYAML(config, mockConfigurator, probes)
+			config.OriginalHealthProbes = probes
+			actual, err := getEnvoyConfigYAML(config, mockConfigurator)
 
 			Expect(err).ToNot(HaveOccurred())
 
@@ -401,8 +367,7 @@ static_resources:
 			// Contains only the "bootstrap.yaml" key
 			Expect(len(secret.Data)).To(Equal(1))
 
-			Expect(secret.Data[envoyBootstrapConfigFile]).To(Equal(expected.Data[envoyBootstrapConfigFile]),
-				fmt.Sprintf("Expected YAML: %s;\nActual YAML: %s\n", expected.Data, secret.Data))
+			// Expect(secret.Data[envoyBootstrapConfigFile]).To(Equal(expected.Data[envoyBootstrapConfigFile]), 				fmt.Sprintf("Expected YAML: %s;\nActual YAML: %s\n", expected.Data, secret.Data))
 
 			// Now check the entire struct
 			Expect(*secret).To(Equal(expected))
@@ -411,7 +376,8 @@ static_resources:
 
 	Context("Test getStaticResources()", func() {
 		It("Creates static_resources Envoy struct", func() {
-			actual := getXdsCluster(config, mockConfigurator, probes)
+			config.OriginalHealthProbes = probes
+			actual := getXdsCluster(config)
 			expected := getExpectedXDSClusterStruct()
 
 			expectedJSON := marshal(expected)
@@ -423,7 +389,8 @@ static_resources:
 
 	Context("Test getStaticResources()", func() {
 		It("Creates static_resources Envoy struct", func() {
-			actual := getStaticResources(config, mockConfigurator, probes)
+			config.OriginalHealthProbes = probes
+			actual := getStaticResources(config, mockConfigurator)
 			expected := map[string]interface{}{
 				"clusters": []map[string]interface{}{
 					getExpectedXDSClusterStruct(),
@@ -465,6 +432,59 @@ var _ = Describe("Test Envoy sidecar", func() {
 	mockCtrl := gomock.NewController(GinkgoT())
 	mockConfigurator := configurator.NewMockConfigurator(mockCtrl)
 
+	expectedContainerPorts := []corev1.ContainerPort{
+		{
+			Name:          "proxy-admin",
+			HostPort:      0,
+			ContainerPort: 15000,
+			Protocol:      "",
+			HostIP:        "",
+		},
+		{
+			Name:          "proxy-inbound",
+			HostPort:      0,
+			ContainerPort: 15003,
+			Protocol:      "",
+			HostIP:        "",
+		},
+		{
+			Name:          "proxy-metrics",
+			HostPort:      0,
+			ContainerPort: 15010,
+			Protocol:      "",
+			HostIP:        "",
+		},
+		{
+			Name:          "liveness-port",
+			HostPort:      0,
+			ContainerPort: 15901,
+			Protocol:      "",
+			HostIP:        "",
+		},
+		{
+			Name:          "readiness-port",
+			HostPort:      0,
+			ContainerPort: 15902,
+			Protocol:      "",
+			HostIP:        "",
+		},
+		{
+			Name:          "startup-port",
+			HostPort:      0,
+			ContainerPort: 15903,
+			Protocol:      "",
+			HostIP:        "",
+		},
+	}
+
+	Context("Test getEnvoyContainerPorts()", func() {
+		It("creates container port list", func() {
+			actual := getEnvoyContainerPorts(probes)
+
+			Expect(actual).To(Equal(expectedContainerPorts))
+		})
+	})
+
 	Context("create Envoy sidecar", func() {
 		It("creates correct Envoy sidecar spec", func() {
 			mockConfigurator.EXPECT().GetEnvoyLogLevel().Return("debug").Times(1)
@@ -480,20 +500,7 @@ var _ = Describe("Test Envoy sidecar", func() {
 						return &uid
 					}(),
 				},
-				Ports: []corev1.ContainerPort{
-					{
-						Name:          constants.EnvoyAdminPortName,
-						ContainerPort: constants.EnvoyAdminPort,
-					},
-					{
-						Name:          constants.EnvoyInboundListenerPortName,
-						ContainerPort: constants.EnvoyInboundListenerPort,
-					},
-					{
-						Name:          constants.EnvoyInboundPrometheusListenerPortName,
-						ContainerPort: constants.EnvoyPrometheusInboundListenerPort,
-					},
-				},
+				Ports: expectedContainerPorts,
 				VolumeMounts: []corev1.VolumeMount{
 					{
 						Name:      envoyBootstrapConfigVolume,

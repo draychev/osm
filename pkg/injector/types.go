@@ -63,4 +63,6 @@ type envoyBootstrapConfigMeta struct {
 	// Host and port of the Envoy xDS server
 	XDSHost string
 	XDSPort int
+
+	OriginalHealthProbes healthProbes
 }
