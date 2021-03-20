@@ -33,8 +33,8 @@ var ValidURI = map[string]TypeURI{
 	string(TypeZipkinConfig):       TypeZipkinConfig,
 }
 
-// XDSShortURINames are shortened versions of the URI types
-var XDSShortURINames = map[TypeURI]string{
+// XDSShorxdsRequestTypeNames are shortened versions of the URI types
+var XDSShorxdsRequestTypeNames = map[TypeURI]string{
 	TypeSDS: "SDS",
 	TypeCDS: "CDS",
 	TypeLDS: "LDS",

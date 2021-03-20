@@ -168,7 +168,7 @@ func (s *Server) StreamAggregatedResources(server xds_discovery.AggregatedDiscov
 				log.Debug().Msgf("Received discovery request with Nonce=%s from Envoy on Pod with UID=%s; matches=%t; proxy last Nonce=%s",
 					discoveryRequest.ResponseNonce, proxy.GetPodUID(), discoveryRequest.ResponseNonce == lastNonce, lastNonce)
 			}
-			xdsShortName := envoy.XDSShortURINames[typeURL]
+			xdsShortName := envoy.XDSShorxdsRequestTypeNames[typeURL]
 			log.Info().Msgf("Discovery request <%s> for resources (%v) from Envoy UID=<%s> with Nonce=%s",
 				xdsShortName, discoveryRequest.ResourceNames, proxy.GetPodUID(), discoveryRequest.ResponseNonce)
 
@@ -188,7 +188,7 @@ func (s *Server) StreamAggregatedResources(server xds_discovery.AggregatedDiscov
 			err = s.sendResponse(xdsUpdatePaths, proxy, &server, &discoveryRequest, s.cfg)
 			if err != nil {
 				log.Error().Err(err).Msgf("Failed to create and send %s update to Envoy with xDS Certificate SerialNumber=%s on Pod with UID=%s",
-					envoy.XDSShortURINames[typeURL], proxy.GetCertificateSerialNumber(), proxy.GetPodUID())
+					envoy.XDSShorxdsRequestTypeNames[typeURL], proxy.GetCertificateSerialNumber(), proxy.GetPodUID())
 				continue
 			}
 

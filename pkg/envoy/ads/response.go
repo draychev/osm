@@ -18,12 +18,12 @@ const (
 )
 
 // Wrapper to create and send a discovery response to an envoy server
-func (s *Server) sendTypeResponse(tURI envoy.TypeURI,
+func (s *Server) sendTypeResponse(xdsRequestType envoy.TypeURI,
 	proxy *envoy.Proxy, server *xds_discovery.AggregatedDiscoveryService_StreamAggregatedResourcesServer,
 	req *xds_discovery.DiscoveryRequest, cfg configurator.Configurator) error {
 	// Tracks the success of this TypeURI response operation; accounts also for receipt on envoy server side
 	success := false
-	xdsShortName := envoy.XDSShortURINames[tURI]
+	xdsShortName := envoy.XDSShorxdsRequestTypeNames[xdsRequestType]
 	defer xdsPathTimeTrack(time.Now(), log.Debug(), xdsShortName, proxy.GetCertificateSerialNumber().String(), &success)
 
 	log.Trace().Msgf("[%s] Creating response for proxy with SerialNumber=%s on Pod with UID=%s", xdsShortName, proxy.GetCertificateSerialNumber(), proxy.GetPodUID())
@@ -81,7 +81,7 @@ func (s *Server) sendResponse(typeURIsToSend mapset.Set,
 		err := s.sendTypeResponse(typeURI, proxy, server, finalReq, cfg)
 		if err != nil {
 			log.Error().Err(err).Msgf("Failed to create %s update for Proxy %s",
-				envoy.XDSShortURINames[typeURI], proxy.GetCertificateCommonName())
+				envoy.XDSShorxdsRequestTypeNames[typeURI], proxy.GetCertificateCommonName())
 			success = false
 		}
 	}
