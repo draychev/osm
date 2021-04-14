@@ -27,8 +27,9 @@ var _ = Describe("Scales a setup with client-servers and traffic splits til fail
 		})
 
 		It("Tests HTTP traffic from Clients to the traffic split Cluster IP", func() {
-			// Install OSM with all the requirements
 			var err error
+
+			// Install OSM with all the requirements
 			sd, err = scaleOSMInstall()
 			Expect(err).To(BeNil())
 
@@ -122,6 +123,7 @@ var _ = Describe("Scales a setup with client-servers and traffic splits til fail
 				}
 				wg.Add(1)
 				go func() {
+					defer GinkgoRecover()
 					defer wg.Done()
 					Expect(Td.WaitForPodsRunningReady(serverNamespace, 200*time.Second, numberOfServerServices*serverReplicaSet)).To(Succeed())
 				}()
@@ -148,6 +150,7 @@ var _ = Describe("Scales a setup with client-servers and traffic splits til fail
 
 					wg.Add(1)
 					go func(app string) {
+						defer GinkgoRecover()
 						defer wg.Done()
 						Expect(Td.WaitForPodsRunningReady(app, 200*time.Second, clientReplicaSet)).To(Succeed())
 					}(clientApp)

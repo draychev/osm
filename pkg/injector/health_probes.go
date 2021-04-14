@@ -22,6 +22,10 @@ var errNoMatchingPort = errors.New("no matching port")
 type healthProbe struct {
 	path string
 	port int32
+
+	// isHTTP corresponds to an httpGet probe with a scheme of HTTP or undefined.
+	// This helps inform what kind of Envoy config to add to the pod.
+	isHTTP bool
 }
 
 // healthProbes is to serve as an indication whether the given healthProbe has been rewritten
@@ -61,30 +65,39 @@ func rewriteProbe(probe *corev1.Probe, probeType, path string, port int32, conta
 	if probe == nil {
 		return nil
 	}
-	if probe.HTTPGet == nil {
+
+	originalProbe := &healthProbe{}
+	var newPath string
+	var definedPort *intstr.IntOrString
+	if probe.HTTPGet != nil {
+		definedPort = &probe.HTTPGet.Port
+		originalProbe.isHTTP = len(probe.HTTPGet.Scheme) == 0 || probe.HTTPGet.Scheme == corev1.URISchemeHTTP
+		originalProbe.path = probe.HTTPGet.Path
+		if originalProbe.isHTTP {
+			probe.HTTPGet.Path = path
+			newPath = probe.HTTPGet.Path
+		}
+	} else if probe.TCPSocket != nil {
+		definedPort = &probe.TCPSocket.Port
+	} else {
 		return nil
 	}
 
-	originalPort, err := getPort(probe.HTTPGet.Port, containerPorts)
+	var err error
+	originalProbe.port, err = getPort(*definedPort, containerPorts)
 	if err != nil {
-		log.Err(err).Msgf("Error finding a matching port for %+v on container %+v", probe.HTTPGet.Port, containerPorts)
+		log.Err(err).Msgf("Error finding a matching port for %+v on container %+v", *definedPort, containerPorts)
 	}
-	originalPath := probe.HTTPGet.Path
-
-	probe.HTTPGet.Port = intstr.IntOrString{Type: intstr.Int, IntVal: port}
-	probe.HTTPGet.Path = path
+	*definedPort = intstr.IntOrString{Type: intstr.Int, IntVal: port}
 
 	log.Debug().Msgf(
 		"Rewriting %s probe (:%d%s) to :%d%s",
 		probeType,
-		originalPort, originalPath,
-		probe.HTTPGet.Port.IntValue(), probe.HTTPGet.Path,
+		originalProbe.port, originalProbe.path,
+		definedPort.IntValue(), newPath,
 	)
 
-	return &healthProbe{
-		port: originalPort,
-		path: originalPath,
-	}
+	return originalProbe
 }
 
 // getPort returns the int32 of an IntOrString port; It looks for port's name matches in the full list of container ports

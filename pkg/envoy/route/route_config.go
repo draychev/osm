@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sort"
 
-	set "github.com/deckarep/golang-set"
+	mapset "github.com/deckarep/golang-set"
 	core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	xds_route "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
 	xds_matcher "github.com/envoyproxy/go-control-plane/envoy/type/matcher/v3"
@@ -29,17 +29,23 @@ const (
 )
 
 const (
-	//InboundRouteConfigName is the name of the route config that the envoy will identify
+	//InboundRouteConfigName is the name of the inbound mesh RDS route configuration
 	InboundRouteConfigName = "rds-inbound"
 
-	//OutboundRouteConfigName is the name of the route config that the envoy will identify
+	//OutboundRouteConfigName is the name of the outbound mesh RDS route configuration
 	OutboundRouteConfigName = "rds-outbound"
 
-	// inboundVirtualHost is the name of the virtual host on the inbound route configuration
+	//IngressRouteConfigName is the name of the ingress RDS route configuration
+	IngressRouteConfigName = "rds-ingress"
+
+	// inboundVirtualHost is prefix for the virtual host's name in the inbound route configuration
 	inboundVirtualHost = "inbound_virtual-host"
 
-	// outboundVirtualHost is the name of the virtual host on the outbound route configuration
+	// outboundVirtualHost is the prefix for the virtual host's name in the outbound route configuration
 	outboundVirtualHost = "outbound_virtual-host"
+
+	// ingressVirtualHost is the prefix for the virtual host's name in the ingress route configuration
+	ingressVirtualHost = "ingress_virtual-host"
 
 	// MethodHeaderKey is the key of the header for HTTP methods
 	MethodHeaderKey = ":method"
@@ -87,6 +93,33 @@ func BuildRouteConfiguration(inbound []*trafficpolicy.InboundTrafficPolicy, outb
 	return routeConfiguration
 }
 
+// BuildIngressConfiguration constructs the Envoy constructs ([]*xds_route.RouteConfiguration) for implementing ingress routes
+func BuildIngressConfiguration(ingress []*trafficpolicy.InboundTrafficPolicy, proxy *envoy.Proxy) *xds_route.RouteConfiguration {
+	if len(ingress) == 0 {
+		return nil
+	}
+
+	ingressRouteConfig := NewRouteConfigurationStub(IngressRouteConfigName)
+	for _, in := range ingress {
+		virtualHost := buildVirtualHostStub(ingressVirtualHost, in.Name, in.Hostnames)
+		virtualHost.Routes = buildInboundRoutes(in.Rules)
+		ingressRouteConfig.VirtualHosts = append(ingressRouteConfig.VirtualHosts, virtualHost)
+	}
+
+	if featureflags.IsWASMStatsEnabled() {
+		for k, v := range proxy.StatsHeaders() {
+			ingressRouteConfig.ResponseHeadersToAdd = append(ingressRouteConfig.ResponseHeadersToAdd, &core.HeaderValueOption{
+				Header: &core.HeaderValue{
+					Key:   k,
+					Value: v,
+				},
+			})
+		}
+	}
+
+	return ingressRouteConfig
+}
+
 //NewRouteConfigurationStub creates the route configuration placeholder
 func NewRouteConfigurationStub(routeConfigName string) *xds_route.RouteConfiguration {
 	routeConfiguration := xds_route.RouteConfiguration{
@@ -127,7 +160,7 @@ func buildInboundRoutes(rules []*trafficpolicy.Rule) []*xds_route.Route {
 
 		// Each HTTP method corresponds to a separate route
 		for _, method := range allowedMethods {
-			route := buildRoute(rule.Route.HTTPRouteMatch.PathRegex, method, rule.Route.HTTPRouteMatch.Headers, rule.Route.WeightedClusters, 100, InboundRoute)
+			route := buildRoute(rule.Route.HTTPRouteMatch.PathMatchType, rule.Route.HTTPRouteMatch.Path, method, rule.Route.HTTPRouteMatch.Headers, rule.Route.WeightedClusters, 100, InboundRoute)
 			route.TypedPerFilterConfig = rbacPolicyForRoute
 			routes = append(routes, route)
 		}
@@ -139,20 +172,14 @@ func buildOutboundRoutes(outRoutes []*trafficpolicy.RouteWeightedClusters) []*xd
 	var routes []*xds_route.Route
 	for _, outRoute := range outRoutes {
 		emptyHeaders := map[string]string{}
-		routes = append(routes, buildRoute(constants.RegexMatchAll, constants.WildcardHTTPMethod, emptyHeaders, outRoute.WeightedClusters, outRoute.TotalClustersWeight(), OutboundRoute))
+		routes = append(routes, buildRoute(trafficpolicy.PathMatchRegex, constants.RegexMatchAll, constants.WildcardHTTPMethod, emptyHeaders, outRoute.WeightedClusters, outRoute.TotalClustersWeight(), OutboundRoute))
 	}
 	return routes
 }
 
-func buildRoute(pathRegex, method string, headersMap map[string]string, weightedClusters set.Set, totalWeight int, direction Direction) *xds_route.Route {
+func buildRoute(pathMatchTypeType trafficpolicy.PathMatchType, path string, method string, headersMap map[string]string, weightedClusters mapset.Set, totalWeight int, direction Direction) *xds_route.Route {
 	route := xds_route.Route{
 		Match: &xds_route.RouteMatch{
-			PathSpecifier: &xds_route.RouteMatch_SafeRegex{
-				SafeRegex: &xds_matcher.RegexMatcher{
-					EngineType: &xds_matcher.RegexMatcher_GoogleRe2{GoogleRe2: &xds_matcher.RegexMatcher_GoogleRE2{}},
-					Regex:      pathRegex,
-				},
-			},
 			Headers: getHeadersForRoute(method, headersMap),
 		},
 		Action: &xds_route.Route_Route{
@@ -163,10 +190,31 @@ func buildRoute(pathRegex, method string, headersMap map[string]string, weighted
 			},
 		},
 	}
+
+	switch pathMatchTypeType {
+	case trafficpolicy.PathMatchRegex:
+		route.Match.PathSpecifier = &xds_route.RouteMatch_SafeRegex{
+			SafeRegex: &xds_matcher.RegexMatcher{
+				EngineType: &xds_matcher.RegexMatcher_GoogleRe2{GoogleRe2: &xds_matcher.RegexMatcher_GoogleRE2{}},
+				Regex:      path,
+			},
+		}
+
+	case trafficpolicy.PathMatchExact:
+		route.Match.PathSpecifier = &xds_route.RouteMatch_Path{
+			Path: path,
+		}
+
+	case trafficpolicy.PathMatchPrefix:
+		route.Match.PathSpecifier = &xds_route.RouteMatch_Prefix{
+			Prefix: path,
+		}
+	}
+
 	return &route
 }
 
-func buildWeightedCluster(weightedClusters set.Set, totalWeight int, direction Direction) *xds_route.WeightedCluster {
+func buildWeightedCluster(weightedClusters mapset.Set, totalWeight int, direction Direction) *xds_route.WeightedCluster {
 	var wc xds_route.WeightedCluster
 	var total int
 	for clusterInterface := range weightedClusters.Iter() {

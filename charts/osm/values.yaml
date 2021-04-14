@@ -24,6 +24,7 @@ OpenServiceMesh:
       requests:
         cpu: "0.5"
         memory: "128M"
+    podLabels: {}
   prometheus:
     # -- Prometheus port
     port: 7070
@@ -98,6 +99,8 @@ OpenServiceMesh:
   useHTTPSIngress: false
   # -- Envoy log level is used to specify the level of logs collected from envoy
   envoyLogLevel: error
+  # -- Sets the max data plane connections allowed for an instance of osm-controller, set to 0 to not enforce limits
+  maxDataPlaneConnections: 0
   # -- Controller log verbosity
   controllerLogLevel: info
   # -- Enforce only deploying one mesh in the cluster
@@ -144,6 +147,7 @@ OpenServiceMesh:
       requests:
         cpu: "0.3"
         memory: "64M"
+    podLabels: {}
 
   # -- Run init container in privileged mode
   enablePrivilegedInitContainer: false

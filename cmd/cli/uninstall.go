@@ -20,7 +20,7 @@ the mesh was installed in.
 Only use this in non-production and test environments.
 `
 
-type meshUninstallCmd struct {
+type uninstallCmd struct {
 	out             io.Writer
 	in              io.Reader
 	meshName        string
@@ -30,8 +30,8 @@ type meshUninstallCmd struct {
 	clientSet       kubernetes.Interface
 }
 
-func newMeshUninstall(config *action.Configuration, in io.Reader, out io.Writer) *cobra.Command {
-	uninstall := &meshUninstallCmd{
+func newUninstallCmd(config *action.Configuration, in io.Reader, out io.Writer) *cobra.Command {
+	uninstall := &uninstallCmd{
 		out: out,
 		in:  in,
 	}
@@ -70,7 +70,7 @@ func newMeshUninstall(config *action.Configuration, in io.Reader, out io.Writer)
 	return cmd
 }
 
-func (d *meshUninstallCmd) run() error {
+func (d *uninstallCmd) run() error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 

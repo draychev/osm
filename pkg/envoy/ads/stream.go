@@ -20,6 +20,17 @@ import (
 	"github.com/openservicemesh/osm/pkg/utils"
 )
 
+var (
+	// allDS represents all xDS paths expressed as TypeURLs. Used to issue updates
+	// on all paths for a given proxy.
+	allDS = mapset.NewSetWith(
+		envoy.TypeCDS,
+		envoy.TypeEDS,
+		envoy.TypeLDS,
+		envoy.TypeRDS,
+		envoy.TypeSDS)
+)
+
 // StreamAggregatedResources handles streaming of the clusters to the connected Envoy proxies
 // This is evaluated once per new Envoy proxy connecting and remains running for the duration of the gRPC socket.
 func (s *Server) StreamAggregatedResources(server xds_discovery.AggregatedDiscoveryService_StreamAggregatedResourcesServer) error {
@@ -30,7 +41,10 @@ func (s *Server) StreamAggregatedResources(server xds_discovery.AggregatedDiscov
 		return errors.Wrap(err, "Could not start Aggregated Discovery Service gRPC stream for newly connected Envoy proxy")
 	}
 
-	// TODO(draychev): check for envoy.ErrTooManyConnections; GitHub Issue https://github.com/openservicemesh/osm/issues/2332
+	// If maxDataPlaneConnections is enabled i.e. not 0, then check that the number of Envoy connections is less than maxDataPlaneConnections
+	if s.cfg.GetMaxDataPlaneConnections() != 0 && s.proxyRegistry.GetConnectedProxyCount() >= s.cfg.GetMaxDataPlaneConnections() {
+		return errTooManyConnections
+	}
 
 	log.Trace().Msgf("Envoy with certificate SerialNumber=%s connected", certSerialNumber)
 	metricsstore.DefaultMetricsStore.ProxyConnectCount.Inc()
@@ -40,11 +54,11 @@ func (s *Server) StreamAggregatedResources(server xds_discovery.AggregatedDiscov
 	//       Details on which Pod this Envoy is fronting will arrive via xDS in the NODE_ID string.
 	//       When this arrives we will call RegisterProxy() a second time - this time with Pod context!
 	proxy := envoy.NewProxy(certCommonName, certSerialNumber, utils.GetIPFromContext(server.Context()))
-	s.catalog.RegisterProxy(proxy) // First of Two invocations.  Second one will be during xDS hand-shake!
+	s.proxyRegistry.RegisterProxy(proxy) // First of Two invocations.  Second one will be during xDS hand-shake!
 
-	defer s.catalog.UnregisterProxy(proxy)
+	defer s.proxyRegistry.UnregisterProxy(proxy)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(server.Context())
 	defer cancel()
 
 	quit := make(chan struct{})
@@ -52,7 +66,7 @@ func (s *Server) StreamAggregatedResources(server xds_discovery.AggregatedDiscov
 
 	// This helper handles receiving messages from the connected Envoys
 	// and any gRPC error states.
-	go receive(requests, &server, proxy, quit, s.catalog)
+	go receive(requests, &server, proxy, quit, s.proxyRegistry)
 
 	// Register to Envoy global broadcast updates
 	broadcastUpdate := events.GetPubSubInstance().Subscribe(announcements.ProxyBroadcast)
@@ -175,37 +189,43 @@ func (s *Server) StreamAggregatedResources(server xds_discovery.AggregatedDiscov
 			var xdsUpdatePaths mapset.Set
 			switch typeURL {
 			case envoy.TypeWildcard:
-				xdsUpdatePaths = mapset.NewSetWith(
-					envoy.TypeCDS,
-					envoy.TypeEDS,
-					envoy.TypeLDS,
-					envoy.TypeRDS,
-					envoy.TypeSDS)
+				xdsUpdatePaths = allDS
 			default:
 				xdsUpdatePaths = mapset.NewSetWith(typeURL)
 			}
 
-			err = s.sendResponse(xdsUpdatePaths, proxy, &server, &discoveryRequest, s.cfg)
-			if err != nil {
-				log.Error().Err(err).Msgf("Failed to create and send %s update to Envoy with xDS Certificate SerialNumber=%s on Pod with UID=%s",
-					envoy.XDSShortURINames[typeURL], proxy.GetCertificateSerialNumber(), proxy.GetPodUID())
-				continue
+			// Queue a response job for the request
+			job := proxyResponseJob{
+				typeurls:  xdsUpdatePaths,
+				proxy:     proxy,
+				cfg:       s.cfg,
+				adsStream: &server,
+				request:   &discoveryRequest,
+				xdsServer: s,
+				done:      make(chan struct{}),
 			}
+			s.workqueues.AddJob(&job)
+
+			// Wait for job to complete
+			<-job.done
 
 		case <-broadcastUpdate:
 			log.Info().Msgf("Broadcast wake for Proxy SerialNumber=%s UID=%s", proxy.GetCertificateSerialNumber(), proxy.GetPodUID())
-			err := s.sendResponse(mapset.NewSetWith(
-				envoy.TypeCDS,
-				envoy.TypeEDS,
-				envoy.TypeLDS,
-				envoy.TypeRDS,
-				envoy.TypeSDS),
-				proxy, &server, nil, s.cfg)
-			if err != nil {
-				log.Error().Err(err).Msgf("Failed to create and send ADS update to Envoy with xDS Certificate SerialNumber=%s on Pod with UID=%s",
-					proxy.GetCertificateSerialNumber(), proxy.GetPodUID())
-				continue
+
+			// Queue a full configuration update
+			job := proxyResponseJob{
+				typeurls:  allDS,
+				proxy:     proxy,
+				cfg:       s.cfg,
+				adsStream: &server,
+				request:   nil,
+				xdsServer: s,
+				done:      make(chan struct{}),
 			}
+			s.workqueues.AddJob(&job)
+
+			// Wait for job to complete
+			<-job.done
 
 		case certUpdateMsg := <-certAnnouncement:
 			certificate := certUpdateMsg.(events.PubSubMessage).NewObj.(certificate.Certificater)
@@ -213,13 +233,22 @@ func (s *Server) StreamAggregatedResources(server xds_discovery.AggregatedDiscov
 				// The CN whose corresponding certificate was updated (rotated) by the certificate provider is associated
 				// with this proxy, so update the secrets corresponding to this certificate via SDS.
 				log.Debug().Msgf("Certificate has been updated for proxy with SerialNumber=%s, UID=%s", proxy.GetCertificateSerialNumber(), proxy.GetPodUID())
+
 				// Empty DiscoveryRequest should create the SDS specific request
-				err := s.sendResponse(mapset.NewSetWith(envoy.TypeSDS), proxy, &server, nil, s.cfg)
-				if err != nil {
-					log.Error().Err(err).Msgf("Failed to create and send SDS update to Envoy with xDS Certificate SerialNumber=%s on Pod with UID=%s",
-						proxy.GetCertificateSerialNumber(), proxy.GetPodUID())
-					continue
+				// Prepare to queue the SDS proxy response job on the workerpool
+				job := proxyResponseJob{
+					typeurls:  mapset.NewSetWith(envoy.TypeSDS),
+					proxy:     proxy,
+					cfg:       s.cfg,
+					adsStream: &server,
+					request:   nil,
+					xdsServer: s,
+					done:      make(chan struct{}),
 				}
+				s.workqueues.AddJob(&job)
+
+				// Wait for job to complete
+				<-job.done
 			}
 		}
 	}

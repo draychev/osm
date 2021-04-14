@@ -2,8 +2,9 @@ package trafficpolicy
 
 import (
 	"reflect"
+	"sort"
 
-	set "github.com/deckarep/golang-set"
+	mapset "github.com/deckarep/golang-set"
 	"github.com/pkg/errors"
 
 	"github.com/openservicemesh/osm/pkg/constants"
@@ -12,13 +13,14 @@ import (
 
 // WildCardRouteMatch represents a wildcard HTTP route match condition
 var WildCardRouteMatch HTTPRouteMatch = HTTPRouteMatch{
-	PathRegex: constants.RegexMatchAll,
-	Methods:   []string{constants.WildcardHTTPMethod},
+	Path:          constants.RegexMatchAll,
+	PathMatchType: PathMatchRegex,
+	Methods:       []string{constants.WildcardHTTPMethod},
 }
 
 // NewRouteWeightedCluster takes a route and weighted cluster and returns a *RouteWeightedCluster
 func NewRouteWeightedCluster(route HTTPRouteMatch, weightedClusters []service.WeightedCluster) *RouteWeightedClusters {
-	weightedClusterSet := set.NewSet()
+	weightedClusterSet := mapset.NewSet()
 	for _, wc := range weightedClusters {
 		weightedClusterSet.Add(wc)
 	}
@@ -70,7 +72,7 @@ func (in *InboundTrafficPolicy) AddRule(route RouteWeightedClusters, allowedServ
 	if !routeExists {
 		in.Rules = append(in.Rules, &Rule{
 			Route:                  route,
-			AllowedServiceAccounts: set.NewSet(allowedServiceAccount),
+			AllowedServiceAccounts: mapset.NewSet(allowedServiceAccount),
 		})
 	}
 }
@@ -79,7 +81,7 @@ func (in *InboundTrafficPolicy) AddRule(route RouteWeightedClusters, allowedServ
 //	already exists, an error will be returned. If a Route with the given HTTP route match does not exist,
 //	a Route with the given HTTP route match and weighted clusters will be added to the Routes on the OutboundTrafficPolicy
 func (out *OutboundTrafficPolicy) AddRoute(httpRouteMatch HTTPRouteMatch, weightedClusters ...service.WeightedCluster) error {
-	wc := set.NewSet()
+	wc := mapset.NewSet()
 	for _, c := range weightedClusters {
 		wc.Add(c)
 	}
@@ -101,22 +103,25 @@ func (out *OutboundTrafficPolicy) AddRoute(httpRouteMatch HTTPRouteMatch, weight
 }
 
 // MergeInboundPolicies merges latest InboundTrafficPolicies into a slice of InboundTrafficPolicies that already exists (original)
-// allowPartialHostnamesMatch is set to true when we intend to merge ingress policies with traffic policies
+// allowPartialHostnamesMatch when set to true merges inbound policies by partially comparing (subset of one another) the hostnames of the original traffic policy to the latest traffic policy
+// A partial match on hostnames should be allowed for the following scenarios :
+// 1. when an ingress policy is being merged with other ingress traffic policies or
+// 2. when a policy having its hostnames from a host header needs to be merged with other inbound traffic policies
+// in either of these cases the will be only a single hostname and there is a possibility that this hostname is part of an existing traffic policy
+// hence the rules need to be merged
 func MergeInboundPolicies(allowPartialHostnamesMatch bool, original []*InboundTrafficPolicy, latest ...*InboundTrafficPolicy) []*InboundTrafficPolicy {
 	for _, l := range latest {
 		foundHostnames := false
 		for _, or := range original {
 			if !allowPartialHostnamesMatch {
-				// For an traffic target inbound policy the hostnames list should fully intersect
-				// to merge the rules
 				if reflect.DeepEqual(or.Hostnames, l.Hostnames) {
 					foundHostnames = true
 					or.Rules = mergeRules(or.Rules, l.Rules)
 				}
 			} else {
-				// When an inbound traffic policy is being merged with an ingress traffic policy the hostnames is not the entire comprehensive list of kubernetes service names
-				// and will just be a subset to merge the rules
-				if subset(or.Hostnames, l.Hostnames) {
+				// If l.Hostnames is a subset of or.Hostnames or vice versa then we need to get a union of the two
+				if hostsUnion := slicesUnionIfSubset(or.Hostnames, l.Hostnames); len(hostsUnion) > 0 {
+					or.Hostnames = hostsUnion
 					foundHostnames = true
 					or.Rules = mergeRules(or.Rules, l.Rules)
 				}
@@ -130,14 +135,29 @@ func MergeInboundPolicies(allowPartialHostnamesMatch bool, original []*InboundTr
 }
 
 // MergeOutboundPolicies merges two slices of *OutboundTrafficPolicies so that there is only one traffic policy for a given set of a hostnames
-func MergeOutboundPolicies(original []*OutboundTrafficPolicy, latest ...*OutboundTrafficPolicy) []*OutboundTrafficPolicy {
+// allowPartialHostnamesMatch when set to true merges outbound policies by partially comparing (subset of one another) the hostnames of the original traffic policy to the latest traffic policy
+// Two outbound traffic policies can be merged by comparing their hostnames either partially or completely. A partial match on hostnames should be allowed for the following scenarios :
+// when a policy having its hostnames from a host header needs to be merged with other outbound policies
+// This is because there will be a single hostname (from the host header) and there is a possibility that this hostname is part of an existing traffic policy
+// hence the rules need to be merged
+func MergeOutboundPolicies(allowPartialHostnamesMatch bool, original []*OutboundTrafficPolicy, latest ...*OutboundTrafficPolicy) []*OutboundTrafficPolicy {
 	for _, l := range latest {
 		foundHostnames := false
 		for _, or := range original {
-			if reflect.DeepEqual(or.Hostnames, l.Hostnames) {
-				foundHostnames = true
-				mergedRoutes := mergeRoutesWeightedClusters(or.Routes, l.Routes)
-				or.Routes = mergedRoutes
+			if !allowPartialHostnamesMatch {
+				if reflect.DeepEqual(or.Hostnames, l.Hostnames) {
+					foundHostnames = true
+					mergedRoutes := mergeRoutesWeightedClusters(or.Routes, l.Routes)
+					or.Routes = mergedRoutes
+				}
+			} else {
+				// If l.Hostnames is a subset of or.Hostnames or vice versa then we need to get a union of the two
+				if hostsUnion := slicesUnionIfSubset(or.Hostnames, l.Hostnames); len(hostsUnion) > 0 {
+					or.Hostnames = hostsUnion
+					foundHostnames = true
+					mergedRoutes := mergeRoutesWeightedClusters(or.Routes, l.Routes)
+					or.Routes = mergedRoutes
+				}
 			}
 		}
 		if !foundHostnames {
@@ -188,18 +208,35 @@ func mergeRoutesWeightedClusters(originalRoutes, latestRoutes []*RouteWeightedCl
 	return originalRoutes
 }
 
-// subset returns true if the second array is completely contained in the first array
-func subset(first, second []string) bool {
-	set := make(map[string]bool)
-	for _, value := range first {
-		set[value] = true
+// slicesUnionIfSubset returns the union of the two slices if either slices is a subset of the other
+func slicesUnionIfSubset(first, second []string) []string {
+	areSubsets := false
+	unionSlice := []string{}
+	firstIntf := convertToInterface(first)
+	secondIntf := convertToInterface(second)
+
+	firstSet := mapset.NewSetFromSlice(firstIntf)
+	secondSet := mapset.NewSetFromSlice(secondIntf)
+
+	if firstSet.IsSubset(secondSet) || secondSet.IsSubset(firstSet) {
+		areSubsets = true
 	}
 
-	for _, value := range second {
-		if _, found := set[value]; !found {
-			return false
+	if areSubsets {
+		union := firstSet.Union(secondSet)
+		for intf := range union.Iter() {
+			unionSlice = append(unionSlice, intf.(string))
 		}
+		sort.Strings(unionSlice)
+		return unionSlice
 	}
+	return unionSlice
+}
 
-	return true
+func convertToInterface(slice []string) []interface{} {
+	sliceInterface := make([]interface{}, len(slice))
+	for i := range slice {
+		sliceInterface[i] = slice[i]
+	}
+	return sliceInterface
 }

@@ -10,6 +10,13 @@ import (
 	"github.com/openservicemesh/osm/pkg/trafficpolicy"
 )
 
+const (
+	// AllowPartialHostnamesMatch is used to allow a partial/subset match on hostnames in traffic policies
+	AllowPartialHostnamesMatch bool = true
+	// DisallowPartialHostnamesMatch is used to disallow a partial/subset match on hostnames in traffic policies
+	DisallowPartialHostnamesMatch bool = false
+)
+
 // ListInboundTrafficPolicies returns all inbound traffic policies
 // 1. from service discovery for permissive mode
 // 2. for the given service account and upstream services from SMI Traffic Target and Traffic Split
@@ -17,14 +24,14 @@ func (mc *MeshCatalog) ListInboundTrafficPolicies(upstreamIdentity service.K8sSe
 	if mc.configurator.IsPermissiveTrafficPolicyMode() {
 		inboundPolicies := []*trafficpolicy.InboundTrafficPolicy{}
 		for _, svc := range upstreamServices {
-			inboundPolicies = trafficpolicy.MergeInboundPolicies(false, inboundPolicies, mc.buildInboundPermissiveModePolicies(svc)...)
+			inboundPolicies = trafficpolicy.MergeInboundPolicies(DisallowPartialHostnamesMatch, inboundPolicies, mc.buildInboundPermissiveModePolicies(svc)...)
 		}
 		return inboundPolicies
 	}
 
 	inbound := mc.listInboundPoliciesFromTrafficTargets(upstreamIdentity, upstreamServices)
 	inboundPoliciesFRomSplits := mc.listInboundPoliciesForTrafficSplits(upstreamIdentity, upstreamServices)
-	inbound = trafficpolicy.MergeInboundPolicies(false, inbound, inboundPoliciesFRomSplits...)
+	inbound = trafficpolicy.MergeInboundPolicies(DisallowPartialHostnamesMatch, inbound, inboundPoliciesFRomSplits...)
 	return inbound
 }
 
@@ -43,7 +50,7 @@ func (mc *MeshCatalog) listInboundPoliciesFromTrafficTargets(upstreamIdentity se
 		}
 
 		for _, svc := range upstreamServices {
-			inboundPolicies = trafficpolicy.MergeInboundPolicies(false, inboundPolicies, mc.buildInboundPolicies(t, svc)...)
+			inboundPolicies = trafficpolicy.MergeInboundPolicies(DisallowPartialHostnamesMatch, inboundPolicies, mc.buildInboundPolicies(t, svc)...)
 		}
 	}
 
@@ -94,7 +101,7 @@ func (mc *MeshCatalog) listInboundPoliciesForTrafficSplits(upstreamIdentity serv
 						servicePolicy.AddRule(*trafficpolicy.NewRouteWeightedCluster(routeMatch, []service.WeightedCluster{weightedCluster}), sourceServiceAccount)
 					}
 				}
-				inboundPolicies = trafficpolicy.MergeInboundPolicies(false, inboundPolicies, servicePolicy)
+				inboundPolicies = trafficpolicy.MergeInboundPolicies(DisallowPartialHostnamesMatch, inboundPolicies, servicePolicy)
 			}
 		}
 	}
@@ -196,18 +203,19 @@ func (mc *MeshCatalog) getHTTPPathsPerRoute() (map[trafficpolicy.TrafficSpecName
 		specKey := mc.getTrafficSpecName(httpRouteGroupKind, trafficSpecs.Namespace, trafficSpecs.Name)
 		routePolicies[specKey] = make(map[trafficpolicy.TrafficSpecMatchName]trafficpolicy.HTTPRouteMatch)
 		for _, trafficSpecsMatches := range trafficSpecs.Spec.Matches {
-			serviceRoute := trafficpolicy.HTTPRouteMatch{}
-			serviceRoute.PathRegex = trafficSpecsMatches.PathRegex
-			serviceRoute.Methods = trafficSpecsMatches.Methods
-			serviceRoute.Headers = trafficSpecsMatches.Headers
-			if len(serviceRoute.Headers) != 0 {
-				// When pathRegex and methods are not defined, the header filters are applied to any path and all HTTP methods
-				if serviceRoute.PathRegex == "" {
-					serviceRoute.PathRegex = constants.RegexMatchAll
-				}
-				if serviceRoute.Methods == nil {
-					serviceRoute.Methods = []string{constants.WildcardHTTPMethod}
-				}
+			serviceRoute := trafficpolicy.HTTPRouteMatch{
+				Path:          trafficSpecsMatches.PathRegex,
+				PathMatchType: trafficpolicy.PathMatchRegex,
+				Methods:       trafficSpecsMatches.Methods,
+				Headers:       trafficSpecsMatches.Headers,
+			}
+
+			// When pathRegex or/and methods are not defined, they will be wildcarded
+			if serviceRoute.Path == "" {
+				serviceRoute.Path = constants.RegexMatchAll
+			}
+			if len(serviceRoute.Methods) == 0 {
+				serviceRoute.Methods = []string{constants.WildcardHTTPMethod}
 			}
 			routePolicies[specKey][trafficpolicy.TrafficSpecMatchName(trafficSpecsMatches.Name)] = serviceRoute
 		}
