@@ -16,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
+	"k8s.io/utils/pointer"
 
 	"github.com/openservicemesh/osm/pkg/certificate/providers/tresor"
 	"github.com/openservicemesh/osm/pkg/configurator"
@@ -49,10 +50,11 @@ var _ = Describe("Test functions creating Envoy bootstrap configuration", func()
 		directoryForYAMLFiles = "test_fixtures"
 	)
 
-	isTrue := true
+	serviceAccountName := uuid.New().String()
+	namespace := uuid.New().String()
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "namespace",
+			Namespace: namespace,
 			OwnerReferences: []metav1.OwnerReference{
 				{
 					Name: "not-me",
@@ -61,12 +63,12 @@ var _ = Describe("Test functions creating Envoy bootstrap configuration", func()
 				{
 					Name:       "workload-name",
 					Kind:       "workload-kind",
-					Controller: &isTrue,
+					Controller: pointer.BoolPtr(true),
 				},
 			},
 		},
 		Spec: corev1.PodSpec{
-			ServiceAccountName: "svcacc",
+			ServiceAccountName: serviceAccountName,
 		},
 	}
 
@@ -234,6 +236,14 @@ var _ = Describe("Test functions creating Envoy bootstrap configuration", func()
 		})
 	})
 
+	Context("Test getClusterID()", func() {
+		It("creates cluster ID based on the Pod spec", func() {
+			clusterID := getClusterID(pod)
+			expectedClusterID := fmt.Sprintf("%s.%s", serviceAccountName, namespace)
+			Expect(clusterID).To(Equal(expectedClusterID))
+		})
+	})
+
 	Context("test getEnvoySidecarContainerSpec()", func() {
 		It("creates Envoy sidecar spec", func() {
 			mockConfigurator.EXPECT().GetEnvoyLogLevel().Return("debug").Times(1)
@@ -282,75 +292,8 @@ var _ = Describe("Test functions creating Envoy bootstrap configuration", func()
 				Args: []string{
 					"--log-level", "debug",
 					"--config-path", "/etc/envoy/bootstrap.yaml",
-					"--service-cluster", "svcacc.namespace",
+					"--service-cluster", fmt.Sprintf("%s.%s", serviceAccountName, namespace),
 					"--bootstrap-version 3",
-				},
-				Env: []corev1.EnvVar{
-					{
-						Name:  "POD_UID",
-						Value: "",
-						ValueFrom: &corev1.EnvVarSource{
-							FieldRef: &corev1.ObjectFieldSelector{
-								APIVersion: "",
-								FieldPath:  "metadata.uid",
-							},
-							ResourceFieldRef: nil,
-							ConfigMapKeyRef:  nil,
-							SecretKeyRef:     nil,
-						},
-					},
-					{
-						Name:  "POD_NAME",
-						Value: "",
-						ValueFrom: &corev1.EnvVarSource{
-							FieldRef: &corev1.ObjectFieldSelector{
-								APIVersion: "",
-								FieldPath:  "metadata.name",
-							},
-							ResourceFieldRef: nil,
-							ConfigMapKeyRef:  nil,
-							SecretKeyRef:     nil,
-						},
-					},
-					{
-						Name:  "POD_NAMESPACE",
-						Value: "",
-						ValueFrom: &corev1.EnvVarSource{
-							FieldRef: &corev1.ObjectFieldSelector{
-								APIVersion: "",
-								FieldPath:  "metadata.namespace",
-							},
-							ResourceFieldRef: nil,
-							ConfigMapKeyRef:  nil,
-							SecretKeyRef:     nil,
-						},
-					},
-					{
-						Name:  "POD_IP",
-						Value: "",
-						ValueFrom: &corev1.EnvVarSource{
-							FieldRef: &corev1.ObjectFieldSelector{
-								APIVersion: "",
-								FieldPath:  "status.podIP",
-							},
-							ResourceFieldRef: nil,
-							ConfigMapKeyRef:  nil,
-							SecretKeyRef:     nil,
-						},
-					},
-					{
-						Name:  "SERVICE_ACCOUNT",
-						Value: "",
-						ValueFrom: &corev1.EnvVarSource{
-							FieldRef: &corev1.ObjectFieldSelector{
-								APIVersion: "",
-								FieldPath:  "spec.serviceAccountName",
-							},
-							ResourceFieldRef: nil,
-							ConfigMapKeyRef:  nil,
-							SecretKeyRef:     nil,
-						},
-					},
 				},
 			}
 

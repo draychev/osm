@@ -16,9 +16,6 @@ const (
 )
 
 func getEnvoySidecarContainerSpec(pod *corev1.Pod, cfg configurator.Configurator, originalHealthProbes healthProbes) corev1.Container {
-	// cluster ID will be used as an identifier to the tracing sink
-	clusterID := fmt.Sprintf("%s.%s", pod.Spec.ServiceAccountName, pod.Namespace)
-
 	return corev1.Container{
 		Name:            constants.EnvoyContainerName,
 		Image:           cfg.GetEnvoyImage(),
@@ -40,52 +37,15 @@ func getEnvoySidecarContainerSpec(pod *corev1.Pod, cfg configurator.Configurator
 		Args: []string{
 			"--log-level", cfg.GetEnvoyLogLevel(),
 			"--config-path", strings.Join([]string{envoyProxyConfigPath, envoyBootstrapConfigFile}, "/"),
-			"--service-cluster", clusterID,
+			// cluster ID will be used as an identifier to the tracing sink
+			"--service-cluster", getClusterID(pod),
 			"--bootstrap-version 3",
 		},
-		Env: []corev1.EnvVar{
-			{
-				Name: "POD_UID",
-				ValueFrom: &corev1.EnvVarSource{
-					FieldRef: &corev1.ObjectFieldSelector{
-						FieldPath: "metadata.uid",
-					},
-				},
-			},
-			{
-				Name: "POD_NAME",
-				ValueFrom: &corev1.EnvVarSource{
-					FieldRef: &corev1.ObjectFieldSelector{
-						FieldPath: "metadata.name",
-					},
-				},
-			},
-			{
-				Name: "POD_NAMESPACE",
-				ValueFrom: &corev1.EnvVarSource{
-					FieldRef: &corev1.ObjectFieldSelector{
-						FieldPath: "metadata.namespace",
-					},
-				},
-			},
-			{
-				Name: "POD_IP",
-				ValueFrom: &corev1.EnvVarSource{
-					FieldRef: &corev1.ObjectFieldSelector{
-						FieldPath: "status.podIP",
-					},
-				},
-			},
-			{
-				Name: "SERVICE_ACCOUNT",
-				ValueFrom: &corev1.EnvVarSource{
-					FieldRef: &corev1.ObjectFieldSelector{
-						FieldPath: "spec.serviceAccountName",
-					},
-				},
-			},
-		},
 	}
+}
+
+func getClusterID(pod *corev1.Pod) string {
+	return fmt.Sprintf("%s.%s", pod.Spec.ServiceAccountName, pod.Namespace)
 }
 
 func getEnvoyContainerPorts(originalHealthProbes healthProbes) []corev1.ContainerPort {
